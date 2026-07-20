@@ -16,6 +16,7 @@ describe("renderer payload", () => {
     expect(payload).toContain("codex-background-task");
     expect(payload).toContain("media.playbackRate");
     expect(payload).toContain(".app-shell-main-content-viewport");
+    expect(payload).toContain(".home-banners");
     expect(payload).toContain('[class~=\\"sticky\\"][class*=\\"bg-token-main-surface-primary\\"]:has(input[type=\\"text\\"])');
     expect(payload).toContain('[class~=\\"h-full\\"][class~=\\"min-h-0\\"][class~=\\"flex-col\\"]');
     expect(payload).toContain('aside[class~=\\"ml-auto\\"]');

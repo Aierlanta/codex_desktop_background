@@ -130,6 +130,14 @@ html.codex-background-active [class*="bg-token-dropdown-background"]:not(.compos
   backdrop-filter: none !important;
 }
 
+/* 首页推荐横幅（例如“启用快速模式”）是独立于输入栏的原生卡片。
+   让卡片跟随菜单/右侧面板不透明度，避免固定实底悬在透明首页上。 */
+html.codex-background-active main.main-surface .home-banners > aside[class*="bg-token-main-surface-primary"] {
+  background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
 /* 任务页右侧辅助栏的内容会在任务/浏览器/终端间切换，不能依赖内部按钮识别。
    使用稳定的右侧 aside 容器统一打底，并清掉所有内容页自带的 main-surface 实底。 */
 html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] {
