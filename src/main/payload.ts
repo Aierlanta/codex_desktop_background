@@ -103,8 +103,8 @@ html.codex-background-active main.main-surface [class*="bg-gradient-to-t"][class
   background-color: transparent !important;
   background-image: none !important;
 }
-html.codex-background-active main.main-surface [class~="sticky"]:has(#appgen-site-search),
-html.codex-background-active main.main-surface [class~="sticky"]:has(#appgen-site-search)::after {
+html.codex-background-active main.main-surface .app-shell-main-content-viewport [class~="sticky"][class*="bg-token-main-surface-primary"]:has(input[type="text"]),
+html.codex-background-active main.main-surface .app-shell-main-content-viewport [class~="sticky"][class*="bg-token-main-surface-primary"]:has(input[type="text"])::after {
   background-color: transparent !important;
   background-image: none !important;
 }
