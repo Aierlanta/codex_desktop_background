@@ -16,6 +16,8 @@ describe("renderer payload", () => {
     expect(payload).toContain("codex-background-task");
     expect(payload).toContain("media.playbackRate");
     expect(payload).toContain(".app-shell-main-content-viewport");
+    expect(payload).toContain("#appgen-site-search");
+    expect(payload).toContain('[class~=\\"h-full\\"][class~=\\"min-h-0\\"][class~=\\"flex-col\\"]');
     expect(payload).toContain('aside[class~=\\"ml-auto\\"]');
     expect(payload).toContain('aside[class~=\\"ml-auto\\"][class*=\\"z-[41]\\"] [class*=\\"bg-token-main-surface-primary\\"]');
     expect(payload).not.toContain(':has(ul button[class*=\\"bg-token-bg-fog\\"])');

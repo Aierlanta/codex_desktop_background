@@ -87,6 +87,9 @@ html.codex-background-active main.main-surface .app-shell-main-content-frame,
 html.codex-background-active main.main-surface [class~="bg-token-main-surface-primary"][class~="h-full"][class~="w-full"] {
   background: transparent !important;
 }
+html.codex-background-active main.main-surface .app-shell-main-content-viewport [class~="h-full"][class~="min-h-0"][class~="flex-col"][class*="bg-token-main-surface-primary"] {
+  background-color: transparent !important;
+}
 
 html.codex-background-active .composer-surface-chrome,
 html.codex-background-active main.main-surface div.no-drag:has(> input[type="text"]),
@@ -97,6 +100,11 @@ html.codex-background-active main.main-surface div.no-drag:has(> textarea) {
   border-color: transparent !important;
 }
 html.codex-background-active main.main-surface [class*="bg-gradient-to-t"][class*="from-token-main-surface-primary"][class*="via-token-main-surface-primary"] {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+html.codex-background-active main.main-surface [class~="sticky"]:has(#appgen-site-search),
+html.codex-background-active main.main-surface [class~="sticky"]:has(#appgen-site-search)::after {
   background-color: transparent !important;
   background-image: none !important;
 }
