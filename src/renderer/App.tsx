@@ -134,7 +134,19 @@ function MediaThumb({ item, active, inPlaylist, onActivate, onTogglePlaylist, on
   onRemove: () => void;
 }) {
   return (
-    <button className={`media-thumb${active ? " is-active" : ""}`} onClick={onActivate} title={item.name}>
+    <div
+      className={`media-thumb${active ? " is-active" : ""}`}
+      onClick={onActivate}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onActivate();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      title={item.name}
+    >
       <span className="thumb-visual">
         {item.kind === "video" ? (
           <video src={item.previewUrl} muted preload="metadata" />
@@ -157,7 +169,7 @@ function MediaThumb({ item, active, inPlaylist, onActivate, onTogglePlaylist, on
       </span>
       <span className="thumb-name">{item.name}</span>
       <span className="thumb-meta">{item.origin === "api" ? "随机 API" : item.kind === "video" ? "视频" : "图片"} · {formatBytes(item.byteSize)}</span>
-    </button>
+    </div>
   );
 }
 

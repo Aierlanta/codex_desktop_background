@@ -1,7 +1,11 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
+  ApplyRequest,
   AppSnapshot,
   BackgroundBridge,
   DEFAULT_SETTINGS,
+  DownloadRequest,
   ImportResult,
   MediaItem,
   SettingsPatch,
@@ -86,8 +90,36 @@ const mockBridge: BackgroundBridge = {
   },
 };
 
-if (!window.backgroundStudio && !import.meta.env.DEV) {
+const isTauri = "__TAURI_INTERNALS__" in window;
+
+const tauriBridge: BackgroundBridge = {
+  getSnapshot: () => invoke<AppSnapshot>("get_snapshot"),
+  chooseMediaFiles: () => invoke<ImportResult>("choose_media_files"),
+  chooseMediaFolder: () => invoke<ImportResult>("choose_media_folder"),
+  addRemoteMedia: (request: DownloadRequest) => invoke<ImportResult>("add_remote_media", { request }),
+  refreshMedia: (id: string) => invoke<AppSnapshot>("refresh_media", { id }),
+  removeMedia: (id: string) => invoke<AppSnapshot>("remove_media", { id }),
+  setActiveMedia: (id: string) => invoke<AppSnapshot>("set_active_media", { id }),
+  updateSettings: (patch: SettingsPatch) => invoke<AppSnapshot>("update_settings", { patch }),
+  apply: (request?: ApplyRequest) => invoke<AppSnapshot>("apply_background", { request: request ?? null }),
+  pause: () => invoke<AppSnapshot>("pause_background"),
+  restore: () => invoke<AppSnapshot>("restore_background"),
+  openDataDirectory: () => invoke<void>("open_data_directory"),
+  showWindow: () => invoke<void>("show_window"),
+  onSnapshot: (listener) => {
+    let disposed = false;
+    const pending = listen<AppSnapshot>("background:snapshot-changed", (event) => {
+      if (!disposed) listener(event.payload);
+    });
+    return () => {
+      disposed = true;
+      void pending.then((unlisten) => unlisten());
+    };
+  },
+};
+
+if (!window.backgroundStudio && !isTauri && !import.meta.env.DEV) {
   throw new Error("安全预加载桥接未能启动，请重新安装 Codex Background Studio。");
 }
 
-export const bridge = window.backgroundStudio ?? mockBridge;
+export const bridge = window.backgroundStudio ?? (isTauri ? tauriBridge : mockBridge);

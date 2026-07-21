@@ -6,6 +6,8 @@
 Chromium DevTools Protocol 动态加载背景，不修改 `WindowsApps`、
 `app.asar`、应用签名、登录状态或对话数据。
 
+管理器采用 Tauri 2、Rust 和系统 WebView2，不再随安装包捆绑一套 Chromium。
+
 > 非 OpenAI 官方产品。Codex 及相关商标归其权利人所有。
 
 ## 功能
@@ -27,8 +29,10 @@ Chromium DevTools Protocol 动态加载背景，不修改 `WindowsApps`、
 
 ## 开发
 
-要求 Node.js 22 或更高版本，以及从 Microsoft Store 安装的官方
-`OpenAI.Codex` 应用。
+要求 Node.js 22 或更高版本、Rust stable、Visual Studio Build Tools 的
+“使用 C++ 的桌面开发”工作负载，以及从 Microsoft Store 安装的官方
+`OpenAI.Codex` 应用。Windows 10/11 还需 WebView2 Runtime；安装程序会在缺失时
+静默下载微软引导器。
 
 ```powershell
 npm install
@@ -48,7 +52,21 @@ npm run dev:web
 npm run package:win
 ```
 
-产物位于 `release/`。
+NSIS 产物位于 `src-tauri/target/release/bundle/nsis/`。从 0.4.0 起 Tauri 是唯一
+受支持的桌面运行时；旧 Electron 后端仅保留为历史源码，不再构建或维护。
+
+## 发布
+
+推送与应用版本一致的 `v*` 标签会触发 GitHub Actions，在 Windows runner 上执行
+完整检查、构建 NSIS 安装包，并创建正式 GitHub Release：
+
+```powershell
+git tag v0.4.0
+git push origin v0.4.0
+```
+
+工作流会核对 `package.json`、`src-tauri/Cargo.toml`、`tauri.conf.json` 和标签版本，
+任一不一致都会停止发布。
 
 维护 Codex 页面样式、CDP 注入或媒体流程前，请先阅读项目 Skill：
 [`codex-background-development`](./.cursor/skills/codex-background-development/SKILL.md)。
@@ -60,7 +78,8 @@ npm run package:win
 2. 经用户确认后，以仅绑定 `127.0.0.1` 的调试端口重新启动 Codex。
 3. 校验端口所有权和 CDP Browser ID，仅连接 `app://` 渲染目标。
 4. 通过早期文档脚本和运行时注入加载背景，持续处理导航和页面重载。
-5. 媒体由带随机令牌的本机 HTTP 服务提供，服务仅监听回环地址并支持视频 Range 请求。
+5. 管理器预览由带随机令牌的本机 HTTP 服务提供；给 Codex 的媒体会以内联数据注入，
+   不依赖 Codex 访问本机文件或预览端口。
 6. 恢复时移除早期脚本和实时 DOM，关闭经过包身份校验的 Codex，再以官方方式启动。
 
 ## 网络媒体安全

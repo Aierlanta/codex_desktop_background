@@ -30,17 +30,17 @@ description: Maintains Codex Background Studio, including CDP injection, Codex p
 
 ## 代码入口
 
-- `src/main/index.ts`：Electron 主进程、IPC、媒体 payload、轮播、托盘和应用生命周期。
-- `src/main/codex-controller.ts`：发现官方 Store 包、校验进程、启动 Codex、保存 CDP 会话。
-- `src/main/injector.ts`：CDP target 同步、早期脚本、运行时更新、暂停和移除。
+- `src-tauri/src/lib.rs`：当前 Tauri/Rust 主后端、命令、轮播和共享状态。
+- `src-tauri/src/host.rs`：托盘、窗口生命周期、退出恢复和 Windows 自启动。
+- `src-tauri/src/controller.rs`：发现官方 Store 包、校验进程、启动 Codex、保存和恢复 CDP 会话。
+- `src-tauri/src/injector.rs`：Rust CDP target 同步、早期脚本、运行时更新、暂停和移除。
+- `src-tauri/src/media.rs`、`network.rs`、`preview.rs`、`settings.rs`：媒体、安全下载、预览和事务设置。
+- `src-tauri/build.rs`、`src-tauri/src/payload.rs`：从 TypeScript 提取共享 payload 并生成 Rust 资源。
 - `src/main/payload.ts`：Codex 页面背景层、CSS 变量、页面选择器、Shadow DOM 和清理逻辑。
-- `src/main/settings.ts`：设置规范化、边界和事务写入。
-- `src/shared/contracts.ts`：主进程、preload、renderer 共用类型、默认值和 IPC 名称。
-- `src/main/media-library.ts`：媒体校验、目录、哈希、动态 API 刷新和文件替换。
-- `src/main/network-policy.ts`：远程下载、DNS 固定、SSRF 防护、格式和大小限制。
-- `src/main/preload.cts`、`src/renderer/bridge.ts`：安全 IPC 桥。
+- `src/shared/contracts.ts`、`src-tauri/src/models.rs`：前端和 Rust 对应的数据契约。
+- `src/renderer/bridge.ts`：Tauri `invoke` 主桥，同时保留 Electron 备份桥。
 - `src/renderer/App.tsx`：Studio 操作界面和设置控件。
-- `src/main/*.test.ts`：设置、媒体、网络、payload 回归测试。
+- `src/main/*`：0.3.0 以前的 Electron 历史实现；0.4.0 起已废弃且不再参与构建。
 
 ## 标准开发流程
 
@@ -53,7 +53,8 @@ git status --short --branch
 npm run check
 ```
 
-开发要求 Node.js 22+。项目使用 npm，不要手工编造依赖版本。
+开发要求 Node.js 22+、Rust stable 和 MSVC C++ Build Tools。JavaScript 使用 npm，
+Rust 使用 Cargo，不要手工编造依赖版本。
 
 ### 2. 复现并确定视觉层
 
@@ -142,10 +143,10 @@ npm run check
 npm run package:win
 ```
 
-安装包位于 `release/Codex Background Studio Setup <version>.exe`。
-
-若 electron-builder 报 `EBUSY`，先关闭 `release/win-unpacked` 中的 Studio 进程，
-等待 Windows/杀毒软件释放文件锁，再重试；不要删除用户数据。
+安装包位于
+`src-tauri/target/release/bundle/nsis/Codex Background Studio_<version>_x64-setup.exe`。
+开发、构建和 `package:win` 都只走 Tauri。Electron 命令仅以
+`package.json#legacyElectronScripts` 元数据保存，不是可执行 npm scripts。
 
 ### 8. 提交和传输
 
