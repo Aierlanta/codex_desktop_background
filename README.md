@@ -48,6 +48,10 @@ npm run package:win
 
 产物位于 `release/`。
 
+维护 Codex 页面样式、CDP 注入或媒体流程前，请先阅读项目 Skill：
+[`codex-background-development`](./.cursor/skills/codex-background-development/SKILL.md)。
+其中记录了各页面入口、稳定选择器、Shadow DOM 处理、调试验证和发布流程。
+
 ## 工作方式
 
 1. 动态发现并校验当前用户注册的官方 Store 包、Manifest 和实际可执行文件。

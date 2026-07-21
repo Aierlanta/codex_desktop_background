@@ -147,6 +147,17 @@ html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z
 html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] [class*="bg-token-main-surface-primary"] {
   background-color: transparent !important;
 }
+html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card,
+html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] diffs-container,
+html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] file-tree-container {
+  background-color: transparent !important;
+  background-image: none !important;
+  --color-token-main-surface-primary: transparent !important;
+}
+html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card > [class~="sticky"][class~="backdrop-blur-sm"] {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+}
 
 /* 集成终端面板：原生为多层嵌套的不透明实底(bg-token-main-surface-primary)。
    先把所有包裹层设为透明，避免多层半透明叠加，再只给终端面板本体打一层
@@ -187,6 +198,21 @@ html.codex-background-dark #codex-background-layer {
 }
 `;
 
+const REVIEW_SHADOW_STYLE_ID = "codex-background-review-shadow-style";
+const REVIEW_SHADOW_CSS = String.raw`
+[data-diffs-header],
+:is([data-diff], [data-file]) {
+  --codex-diffs-surface: transparent !important;
+  --codex-diffs-context-surface: transparent !important;
+  --diffs-bg: transparent !important;
+  --diffs-bg-context-override: transparent !important;
+  --diffs-bg-addition: color-mix(in srgb, var(--diffs-addition-base, #40c977) 12%, transparent) !important;
+  --diffs-bg-deletion: color-mix(in srgb, var(--diffs-deletion-base, #fa423e) 12%, transparent) !important;
+  --codex-diffs-addition-number: color-mix(in srgb, var(--diffs-addition-base, #40c977) 20%, transparent) !important;
+  --codex-diffs-deletion-number: color-mix(in srgb, var(--diffs-deletion-base, #fa423e) 20%, transparent) !important;
+}
+`;
+
 export interface PayloadInput {
   mediaUrl: string;
   mediaKind: MediaKind;
@@ -200,13 +226,17 @@ export function buildRendererPayload(input: PayloadInput) {
   const revision = createHash("sha256")
     .update(input.revision)
     .update(BACKGROUND_CSS)
+    .update(REVIEW_SHADOW_CSS)
     .digest("hex");
   const serialized = JSON.stringify({ ...input, revision }).replace(/</g, "\\u003c");
   const css = JSON.stringify(BACKGROUND_CSS);
-  return String.raw`((config, cssText) => {
+  const reviewShadowCss = JSON.stringify(REVIEW_SHADOW_CSS);
+  const reviewShadowStyleId = JSON.stringify(REVIEW_SHADOW_STYLE_ID);
+  return String.raw`((config, cssText, reviewShadowCssText, reviewShadowStyleId) => {
     const STATE = "__CODEX_BACKGROUND_STUDIO__";
     const STYLE_ID = "codex-background-style";
     const LAYER_ID = "codex-background-layer";
+    const REVIEW_HOST_SELECTOR = "diffs-container";
     const ROOT_CLASSES = [
       "codex-background-active", "codex-background-home", "codex-background-task",
       "codex-background-home-disabled", "codex-background-task-disabled",
@@ -222,10 +252,16 @@ export function buildRendererPayload(input: PayloadInput) {
     ];
 
     const previous = window[STATE];
-    if (previous?.observer) previous.observer.disconnect();
-    if (previous?.timer) clearInterval(previous.timer);
-    previous?.layer?.remove();
-    if (previous?.blobUrl) URL.revokeObjectURL(previous.blobUrl);
+    if (previous?.cleanup) {
+      previous.cleanup();
+    } else {
+      if (previous?.observer) previous.observer.disconnect();
+      if (previous?.timer) clearInterval(previous.timer);
+      previous?.layer?.remove();
+      if (previous?.blobUrl) URL.revokeObjectURL(previous.blobUrl);
+    }
+    let scheduled = null;
+    let shadowPatch = null;
 
     // Codex 渲染页无法访问本机 HTTP 服务，媒体以 base64 内嵌传入，
     // 在页面内转成 Blob URL 使用
@@ -239,18 +275,59 @@ export function buildRendererPayload(input: PayloadInput) {
       return URL.createObjectURL(new Blob([bytes], { type: mime }));
     })();
 
+    const installReviewShadowStyle = (host, shadow = host?.shadowRoot) => {
+      if (!shadow) return false;
+      let shadowStyle = shadow.getElementById(reviewShadowStyleId);
+      if (!shadowStyle) {
+        shadowStyle = document.createElement("style");
+        shadowStyle.id = reviewShadowStyleId;
+      }
+      if (shadowStyle.dataset.cbgRevision !== config.revision) {
+        shadowStyle.textContent = reviewShadowCssText;
+        shadowStyle.dataset.cbgRevision = config.revision;
+      }
+      // 始终放到 Shadow DOM 样式末尾，确保覆盖组件稍后同步追加的原生样式。
+      shadow.appendChild(shadowStyle);
+      return true;
+    };
+
     const cleanup = () => {
       const state = window[STATE];
       state?.observer?.disconnect();
       if (state?.timer) clearInterval(state.timer);
+      if (scheduled) cancelAnimationFrame(scheduled);
+      if (shadowPatch?.prototype.attachShadow === shadowPatch.wrapped) {
+        shadowPatch.prototype.attachShadow = shadowPatch.original;
+      }
       document.getElementById(LAYER_ID)?.remove();
       document.getElementById(STYLE_ID)?.remove();
+      document.querySelectorAll("diffs-container").forEach((host) => {
+        host.shadowRoot?.getElementById(reviewShadowStyleId)?.remove();
+      });
       document.documentElement?.classList.remove(...ROOT_CLASSES);
       for (const property of ROOT_PROPERTIES) document.documentElement?.style.removeProperty(property);
       if (state?.blobUrl) URL.revokeObjectURL(state.blobUrl);
       delete window[STATE];
       return true;
     };
+
+    // 页面创建 diff Shadow DOM 时同步接管；微任务和下一帧各补一次，
+    // 保证组件无论同步还是异步追加原生样式，我们的覆盖都在首帧绘制前位于末尾。
+    const patchAttachShadow = () => {
+      const prototype = Element.prototype;
+      const original = prototype.attachShadow;
+      const wrapped = function(init) {
+        const shadow = original.call(this, init);
+        if (this.localName === REVIEW_HOST_SELECTOR) {
+          queueMicrotask(() => installReviewShadowStyle(this, shadow));
+          requestAnimationFrame(() => installReviewShadowStyle(this, shadow));
+        }
+        return shadow;
+      };
+      prototype.attachShadow = wrapped;
+      return { prototype, original, wrapped };
+    };
+    shadowPatch = patchAttachShadow();
 
     // 检测 Codex 原生外观：优先读根节点/滚动容器的计算 color-scheme
     //（跟随应用内主题设置），系统偏好只作兜底
@@ -280,10 +357,7 @@ export function buildRendererPayload(input: PayloadInput) {
 
     const install = () => {
       const root = document.documentElement;
-      if (!root || !document.body) return false;
-      const shellMain = document.querySelector("main.main-surface");
-      const shellSidebar = document.querySelector("aside.app-shell-left-panel");
-      if (!shellMain || !shellSidebar) return false;
+      if (!root) return false;
 
       // 值不同才写入，避免 attribute 观察被自己的写入反复触发
       const setClass = (name, on) => {
@@ -310,9 +384,16 @@ export function buildRendererPayload(input: PayloadInput) {
         style.textContent = cssText;
         style.dataset.cbgRevision = config.revision;
       }
+      // 审阅 diff 使用 Shadow DOM，普通页面 CSS 无法进入其内部。
+      // 对每个已挂载的 diff 宿主注入同一份轻量样式；定时 install 会覆盖后续新建的宿主。
+      document.querySelectorAll(
+        'main.main-surface aside[class~="ml-auto"][class*="z-[41]"] diffs-container'
+      ).forEach((host) => {
+        installReviewShadowStyle(host);
+      });
 
       let layer = document.getElementById(LAYER_ID);
-      if (!layer) {
+      if (!layer && document.body) {
         layer = document.createElement("div");
         layer.id = LAYER_ID;
         const media = document.createElement(config.mediaKind === "video" ? "video" : "img");
@@ -365,10 +446,9 @@ export function buildRendererPayload(input: PayloadInput) {
       return true;
     };
 
-    let scheduled = null;
     const scheduleInstall = () => {
       if (scheduled) return;
-      scheduled = setTimeout(() => { scheduled = null; install(); }, 200);
+      scheduled = requestAnimationFrame(() => { scheduled = null; install(); });
     };
     const observer = new MutationObserver(scheduleInstall);
     observer.observe(document.documentElement, {
@@ -382,7 +462,7 @@ export function buildRendererPayload(input: PayloadInput) {
     install();
     window[STATE].layer = document.getElementById(LAYER_ID);
     return { installed: true, revision: config.revision, mediaKind: config.mediaKind };
-  })(${serialized}, ${css})`;
+  })(${serialized}, ${css}, ${reviewShadowCss}, ${reviewShadowStyleId})`;
 }
 
 export const REMOVE_RENDERER_PAYLOAD = String.raw`(() => {
@@ -403,7 +483,7 @@ export function earlyPayloadFor(payload: string, revision: string) {
   return String.raw`(() => {
     const revision = ${safeRevision};
     const run = () => {
-      if (!document.documentElement || !document.body) return false;
+      if (!document.documentElement) return false;
       try { ${payload}; return true; } catch { return false; }
     };
     if (!run()) {

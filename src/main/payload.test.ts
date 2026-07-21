@@ -21,6 +21,13 @@ describe("renderer payload", () => {
     expect(payload).toContain('[class~=\\"h-full\\"][class~=\\"min-h-0\\"][class~=\\"flex-col\\"]');
     expect(payload).toContain('aside[class~=\\"ml-auto\\"]');
     expect(payload).toContain('aside[class~=\\"ml-auto\\"][class*=\\"z-[41]\\"] [class*=\\"bg-token-main-surface-primary\\"]');
+    expect(payload).toContain("diffs-container");
+    expect(payload).toContain("file-tree-container");
+    expect(payload).toContain("codex-background-review-shadow-style");
+    expect(payload).toContain("--diffs-bg-addition");
+    expect(payload).toContain("attachShadow");
+    expect(payload).toContain("requestAnimationFrame");
+    expect(payload).not.toContain("}, 200)");
     expect(payload).not.toContain(':has(ul button[class*=\\"bg-token-bg-fog\\"])');
     expect(payload).not.toContain("backdrop-filter: blur");
     expect(payload).not.toContain("__DREAM_");
