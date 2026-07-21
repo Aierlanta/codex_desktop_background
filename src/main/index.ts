@@ -29,6 +29,7 @@ import { SettingsStore } from "./settings.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const localAppData = process.env.LOCALAPPDATA || app.getPath("appData");
 const dataDirectory = path.join(localAppData, "CodexBackgroundStudio");
+const applicationIconPath = path.join(here, "../../assets/icon.png");
 app.setPath("userData", path.join(dataDirectory, "electron"));
 
 let mainWindow: BrowserWindow | null = null;
@@ -328,6 +329,7 @@ async function createWindow() {
     show: false,
     backgroundColor: "#f4f6f5",
     title: "Codex Background Studio",
+    icon: nativeImage.createFromPath(applicationIconPath),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(here, "preload.cjs"),
@@ -354,7 +356,7 @@ app.whenReady().then(async () => {
   await mediaServer.start();
   registerIpc();
   await createWindow();
-  const icon = nativeImage.createFromPath(process.execPath).resize({ width: 16, height: 16 });
+  const icon = nativeImage.createFromPath(applicationIconPath).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.on("double-click", showMainWindow);
   rebuildTray();

@@ -1,6 +1,6 @@
 {
   "name": "codex-background-studio",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "private": true,
   "description": "A reversible background manager for the Codex Windows desktop app.",
   "author": "Codex Background Studio contributors",
@@ -46,11 +46,13 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "assets/icon.png",
       "package.json",
       "LICENSE",
       "THIRD_PARTY_NOTICES.md"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ]
