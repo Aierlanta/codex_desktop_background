@@ -71,30 +71,3 @@ git push origin v0.4.0
 维护 Codex 页面样式、CDP 注入或媒体流程前，请先阅读项目 Skill：
 [`codex-background-development`](./.cursor/skills/codex-background-development/SKILL.md)。
 其中记录了各页面入口、稳定选择器、Shadow DOM 处理、调试验证和发布流程。
-
-## 工作方式
-
-1. 动态发现并校验当前用户注册的官方 Store 包、Manifest 和实际可执行文件。
-2. 经用户确认后，以仅绑定 `127.0.0.1` 的调试端口重新启动 Codex。
-3. 校验端口所有权和 CDP Browser ID，仅连接 `app://` 渲染目标。
-4. 通过早期文档脚本和运行时注入加载背景，持续处理导航和页面重载。
-5. 管理器预览由带随机令牌的本机 HTTP 服务提供；给 Codex 的媒体会以内联数据注入，
-   不依赖 Codex 访问本机文件或预览端口。
-6. 恢复时移除早期脚本和实时 DOM，关闭经过包身份校验的 Codex，再以官方方式启动。
-
-## 网络媒体安全
-
-- 仅允许无账号信息的 HTTP/HTTPS URL
-- 每次 DNS 解析和重定向都拒绝本机、私网、链路本地、保留和组播地址
-- 连接使用已经校验的解析结果，避免 DNS 重绑定绕过
-- 图片限制为 50 MB、最大边长 16384 像素、总像素不超过 5000 万
-- 视频限制为 1 GB，并校验容器文件头
-- 下载完成后复制到应用受管目录，不让 Codex 直接访问任意本地路径
-
-运行数据默认位于 `%LOCALAPPDATA%\CodexBackgroundStudio`。
-
-## 致谢与许可
-
-项目采用 MIT 许可证。CDP 注入、安全恢复与 Codex 启动设计参考了
-[Codex Dream Skin](https://github.com/Fei-Away/Codex-Dream-Skin)，详见
-[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
