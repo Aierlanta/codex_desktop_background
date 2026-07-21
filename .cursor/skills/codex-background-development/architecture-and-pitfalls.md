@@ -223,13 +223,20 @@ Invalid IP address: undefined
 
 ### 审阅滚动时先黑后透明
 
-原因：diff 使用 Shadow DOM；普通 CSS 无法穿透，旧实现等 MutationObserver 约 200ms 后注入。
+原因有两层：
+
+- diff 使用 Shadow DOM；普通 CSS 无法穿透，旧实现等 MutationObserver 约 200ms 后注入；
+- `diffs-container` 在真实 `[data-diff]` 出现前，会先在 Shadow `:host` 写入
+  `background-color: #111111` 和 `--diffs-bg: #111111`。只覆盖 `[data-diff]`
+  会让虚拟滚动的新代码块先按这个宿主默认值绘制，再在内容节点挂载后变透明。
 
 处理：
 
 - 早期 payload 在 documentElement 阶段运行；
+- 在普通文档 CSS 的 `diffs-container` 宿主上预先固定透明 surface、context、
+  separator、hover 和 `--diffs-bg` 变量，让占位阶段直接继承透明值；
 - 根级包装 `Element.prototype.attachShadow`；
-- Shadow Root 创建同一帧注入；
+- Shadow Root 创建同一帧注入，并在 Shadow CSS 的 `:host` 再固定同一组变量；
 - 微任务和 requestAnimationFrame 各确保一次样式位于末尾；
 - cleanup 恢复原方法；
 - timer 仅兜底。

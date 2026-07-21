@@ -144,8 +144,11 @@ Shadow DOM 内部关键结构：
 
 实现要求：
 
+- 普通文档 CSS 先在 `diffs-container` 宿主固定 `--diffs-bg`、surface、context、
+  separator 和 hover 变量；真实 diff 内容出现前的占位阶段也必须透明；
 - 文档早期接管 `Element.prototype.attachShadow`；
 - `diffs-container` 创建 shadow 后，在首帧前追加 `REVIEW_SHADOW_CSS`；
+- Shadow CSS 必须覆盖 `:host`，不能只覆盖加载完成后才出现的 `[data-diff]`；
 - 样式节点必须位于 Shadow DOM 原生样式之后；
 - 新增/删除行保留低强度绿/红，不能直接抹掉审阅语义；
 - cleanup 恢复原始 `attachShadow` 并移除 Shadow style；

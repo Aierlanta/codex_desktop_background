@@ -24,6 +24,9 @@ describe("renderer payload", () => {
     expect(payload).toContain("diffs-container");
     expect(payload).toContain("file-tree-container");
     expect(payload).toContain("codex-background-review-shadow-style");
+    expect(payload).toContain(":host,");
+    expect(payload).toContain("--diffs-bg: transparent !important");
+    expect(payload).toContain("--diffs-bg-separator-override: transparent !important");
     expect(payload).toContain("--diffs-bg-addition");
     expect(payload).toContain("attachShadow");
     expect(payload).toContain("requestAnimationFrame");

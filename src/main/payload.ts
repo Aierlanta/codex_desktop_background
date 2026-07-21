@@ -154,6 +154,23 @@ html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z
   background-image: none !important;
   --color-token-main-surface-primary: transparent !important;
 }
+/* diffs-container 渲染真实 [data-diff] 前，会先在 Shadow :host 写入 #111111。
+   把所有底色变量直接固定在宿主上，让占位、虚拟滚动和正式内容从首帧起就继承透明值。 */
+html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] diffs-container {
+  --codex-diffs-surface: transparent !important;
+  --codex-diffs-context-surface: transparent !important;
+  --codex-diffs-separator-surface: transparent !important;
+  --codex-diffs-hover-surface: transparent !important;
+  --codex-diffs-header-surface: transparent !important;
+  --diffs-bg: transparent !important;
+  --diffs-bg-context-override: transparent !important;
+  --diffs-bg-separator-override: transparent !important;
+  --diffs-bg-hover-override: transparent !important;
+  --diffs-bg-addition: color-mix(in srgb, var(--diffs-addition-base, #40c977) 12%, transparent) !important;
+  --diffs-bg-deletion: color-mix(in srgb, var(--diffs-deletion-base, #fa423e) 12%, transparent) !important;
+  --codex-diffs-addition-number: color-mix(in srgb, var(--diffs-addition-base, #40c977) 20%, transparent) !important;
+  --codex-diffs-deletion-number: color-mix(in srgb, var(--diffs-deletion-base, #fa423e) 20%, transparent) !important;
+}
 html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card > [class~="sticky"][class~="backdrop-blur-sm"] {
   background-color: transparent !important;
   backdrop-filter: none !important;
@@ -200,16 +217,24 @@ html.codex-background-dark #codex-background-layer {
 
 const REVIEW_SHADOW_STYLE_ID = "codex-background-review-shadow-style";
 const REVIEW_SHADOW_CSS = String.raw`
+:host,
 [data-diffs-header],
 :is([data-diff], [data-file]) {
+  --color-token-main-surface-primary: transparent !important;
   --codex-diffs-surface: transparent !important;
   --codex-diffs-context-surface: transparent !important;
+  --codex-diffs-separator-surface: transparent !important;
+  --codex-diffs-hover-surface: transparent !important;
+  --codex-diffs-header-surface: transparent !important;
   --diffs-bg: transparent !important;
   --diffs-bg-context-override: transparent !important;
+  --diffs-bg-separator-override: transparent !important;
+  --diffs-bg-hover-override: transparent !important;
   --diffs-bg-addition: color-mix(in srgb, var(--diffs-addition-base, #40c977) 12%, transparent) !important;
   --diffs-bg-deletion: color-mix(in srgb, var(--diffs-deletion-base, #fa423e) 12%, transparent) !important;
   --codex-diffs-addition-number: color-mix(in srgb, var(--diffs-addition-base, #40c977) 20%, transparent) !important;
   --codex-diffs-deletion-number: color-mix(in srgb, var(--diffs-deletion-base, #fa423e) 20%, transparent) !important;
+  background-color: transparent !important;
 }
 `;
 
