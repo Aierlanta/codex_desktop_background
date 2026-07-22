@@ -1,6 +1,10 @@
 # Codex Background Studio
 
 ![Codex Background Studio Logo](./assets/icon.png)
+<img width="1928" height="1040" alt="image" src="https://github.com/user-attachments/assets/02939706-c069-4632-8e7b-92db0cffc0aa" />
+<img width="2312" height="1080" alt="image" src="https://github.com/user-attachments/assets/2e49890e-6f09-415d-9380-e624d77ec82e" />
+
+
 
 一个面向 Windows 官方 Codex 桌面应用的独立背景管理器。它通过本机回环
 Chromium DevTools Protocol 动态加载背景，不修改 `WindowsApps`、
