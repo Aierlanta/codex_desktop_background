@@ -61,12 +61,15 @@ html.codex-background-task { --cbg-route-intensity: var(--cbg-task-intensity); }
 html.codex-background-home.codex-background-home-disabled,
 html.codex-background-task.codex-background-task-disabled { --cbg-route-intensity: 0; }
 
-html.codex-background-active aside.app-shell-left-panel {
+html.codex-background-active aside.app-shell-left-panel,
+html.codex-background-active div[class~="fixed"][class~="left-0"][class~="z-[42]"][class*="top-(--height-toolbar-sm)"] > aside[class*="bg-token-main-surface-primary"] {
   background: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-sidebar-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
+  box-shadow: none !important;
 }
 
 html.codex-background-active aside.app-shell-left-panel nav,
+html.codex-background-active div[class~="fixed"][class~="left-0"][class~="z-[42]"][class*="top-(--height-toolbar-sm)"] > aside[class*="bg-token-main-surface-primary"] nav,
 html.codex-background-active main.main-surface > header.app-header-tint,
 html.codex-background-active main.main-surface .app-shell-main-content-top-fade {
   background: transparent !important;
