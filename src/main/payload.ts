@@ -90,13 +90,35 @@ html.codex-background-active main.main-surface .app-shell-main-content-frame,
 html.codex-background-active main.main-surface [class~="bg-token-main-surface-primary"][class~="h-full"][class~="w-full"] {
   background: transparent !important;
 }
+/* 设置页等内容会在 viewport 内再嵌一层 div.main-surface（原生实底 #181818），
+   外层 main.main-surface 透明后仍会被这层挡住全局背景。 */
+html.codex-background-active main.main-surface .app-shell-main-content-viewport div.main-surface {
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+/* 设置页分组卡片（rounded-2xl + border-token-border）原生约 #232323 实底。
+   跟随菜单/面板不透明度，避免在透明设置页上再盖一整块不透卡片。 */
+html.codex-background-active main.main-surface .app-shell-main-content-viewport div.main-surface [class~="overflow-hidden"][class~="rounded-2xl"][class~="border"][class*="border-token-border"] {
+  background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
+  backdrop-filter: none !important;
+}
+/* 设置页提示横幅（例如个性化页“并非所有模型都支持…”），含警告色叠加层。 */
+html.codex-background-active main.main-surface .app-shell-main-content-viewport div.main-surface aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] {
+  background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+html.codex-background-active main.main-surface .app-shell-main-content-viewport div.main-surface aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] [class*="bg-token-input-validation-warning-background"] {
+  background-color: transparent !important;
+}
 html.codex-background-active main.main-surface .app-shell-main-content-viewport [class~="h-full"][class~="min-h-0"][class~="flex-col"][class*="bg-token-main-surface-primary"] {
   background-color: transparent !important;
 }
 
 html.codex-background-active .composer-surface-chrome,
 html.codex-background-active main.main-surface div.no-drag:has(> input[type="text"]),
-html.codex-background-active main.main-surface div.no-drag:has(> textarea) {
+html.codex-background-active main.main-surface div.no-drag:has(> textarea),
+html.codex-background-active main.main-surface [class*="bg-token-input-background"] {
   background: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-composer-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
   box-shadow: none !important;

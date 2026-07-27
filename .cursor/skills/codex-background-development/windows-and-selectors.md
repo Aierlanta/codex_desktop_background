@@ -31,6 +31,14 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 - 内容区唯一打底层：`.app-shell-main-content-viewport`
 - 透明度：`--cbg-surface-opacity`。
 - `.app-shell-main-content-frame`、`[role="main"]` 和全高页面壳应透明。
+- 设置页会在 viewport 内再嵌一层 `div.main-surface.flex.h-full.min-h-0.flex-col`，
+  原生实底约为 `#181818`；必须单独透明，否则会挡住全局背景。
+- 设置分组卡片：`[class~="overflow-hidden"][class~="rounded-2xl"][class~="border"][class*="border-token-border"]`
+  跟随 `--cbg-menu-opacity`；内部设置行本身透明，不要再叠一层。
+- 设置页提示横幅：`aside.rounded-2xl[class*="bg-token-main-surface-primary"]`
+  跟随 `--cbg-menu-opacity`；内部警告色叠加层清掉，避免实底回潮。
+- 设置页输入：`[class*="bg-token-input-background"]`（例如 `#personal-agents-editor`）
+  跟随 `--cbg-composer-opacity`。
 
 ### 首页与任务页识别
 
