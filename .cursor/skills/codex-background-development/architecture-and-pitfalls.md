@@ -216,6 +216,18 @@ Tauri 单实例插件必须是 Builder 注册的第一个插件。第二次启�
 - 内部壳透明；
 - 关闭 backdrop-filter。
 
+### 临时聊天输入框无光标、无法输入
+
+原因有两层：
+
+- Codex 给 `body` 设 `pointer-events: none`，主区需显式 `pointer-events: auto`；
+- 背景层叠规则若写成 `body > :not(#codex-background-layer)`，会把 portal 出来的
+  `position: fixed` 临时聊天确认框改成 `relative`，弹窗移出视口后仍作为 dialog
+  焦点陷阱，把输入框焦点立刻抢到「继续」按钮上。
+
+处理：叠层只抬 `body > #root`；给 `main.main-surface` 与 `body > [role="dialog"]`
+  / `.codex-dialog` 补 `pointer-events: auto`。不要给所有 body 子节点写 `position: relative`。
+
 ### Composer 黑色渐变
 
 原因：独立 `bg-gradient-to-t` 元素和原生 shadow/border。

@@ -12,6 +12,11 @@ describe("renderer payload", () => {
     });
     expect(payload).toContain("codex-background-layer");
     expect(payload).toContain("pointer-events: none");
+    expect(payload).toContain("body > #root");
+    expect(payload).not.toContain("body > :not(#codex-background-layer)");
+    expect(payload).toContain("main.main-surface");
+    expect(payload).toContain('body > [role=\\"dialog\\"]');
+    expect(payload).toContain("pointer-events: auto !important");
     expect(payload).toContain("codex-background-home");
     expect(payload).toContain("codex-background-task");
     expect(payload).toContain("media.playbackRate");

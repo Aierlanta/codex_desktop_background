@@ -28,6 +28,10 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 
 - 稳定入口：`main.main-surface`
 - 规则：自身透明，不在这里打内容区底色。
+- 必须保留：`pointer-events: auto`。Codex 会给 `body` 设 `pointer-events: none`，侧栏有
+  `pointer-events-auto`，但临时聊天等主区布局不会补回；缺了输入框会点穿。
+- 背景层叠只抬 `body > #root`，不要写成 `body > :not(#codex-background-layer)`，
+  否则临时聊天确认框等 portal dialog 会丢掉 `position: fixed` 并抢走输入焦点。
 - 内容区唯一打底层：`.app-shell-main-content-viewport`
 - 透明度：`--cbg-surface-opacity`。
 - `.app-shell-main-content-frame`、`[role="main"]` 和全高页面壳应透明。

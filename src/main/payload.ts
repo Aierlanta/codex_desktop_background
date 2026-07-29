@@ -7,7 +7,9 @@ html.codex-background-active body {
   background: transparent !important;
 }
 
-html.codex-background-active body > :not(#codex-background-layer) {
+/* 只抬主应用根节点，不要用 body > :not(layer) 扫到 portal。
+   否则临时聊天确认框等 fixed dialog 会被改成 relative，移出视口后仍拦截焦点。 */
+html.codex-background-active body > #root {
   position: relative;
   z-index: 1;
 }
@@ -73,6 +75,14 @@ html.codex-background-active div[class~="fixed"][class~="left-0"][class~="z-[42]
 html.codex-background-active main.main-surface > header.app-header-tint,
 html.codex-background-active main.main-surface .app-shell-main-content-top-fade {
   background: transparent !important;
+}
+
+/* Codex 桌面端 body 默认 pointer-events:none，侧栏会自己开回 auto。
+   主区与 portal 弹层需要显式接回点击；只恢复交互，不改透明底。 */
+html.codex-background-active main.main-surface,
+html.codex-background-active body > [role="dialog"],
+html.codex-background-active body > .codex-dialog {
+  pointer-events: auto !important;
 }
 
 html.codex-background-active main.main-surface {
