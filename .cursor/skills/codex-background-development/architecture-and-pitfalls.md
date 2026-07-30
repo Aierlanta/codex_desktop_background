@@ -228,11 +228,40 @@ Tauri 单实例插件必须是 Builder 注册的第一个插件。第二次启�
 处理：叠层只抬 `body > #root`；给 `main.main-surface` 与 `body > [role="dialog"]`
   / `.codex-dialog` 补 `pointer-events: auto`。不要给所有 body 子节点写 `position: relative`。
 
-### Composer 黑色渐变
+### 底部英文无障碍文案 / 已编辑图标小黑底 / 发送钮图标消失
 
-原因：独立 `bg-gradient-to-t` 元素和原生 shadow/border。
+原因分三条：
 
-处理：清 gradient、background-image、shadow、border；composer 本身按独立变量打底。
+- dnd-kit 的 `#DndDescribedBy-*` / `#DndLiveRegion-*` 本应 `display:none`，透明化后
+  若内联隐藏失效，会在侧栏底和主区底露出 “To pick up a draggable item…”；
+- 「已编辑 N 个文件」左侧图标壳用 `bg-token-bg-secondary`（约 92% 黑），表面透明后
+  变成小黑块；
+- 发送/停止白底圆钮上的图标是 `text-token-dropdown-background`；菜单透明度为 0 时
+  该 token 色失效变成白色，白图标贴白钮等于图标消失。
+
+处理：强制隐藏 DndDescribedBy/LiveRegion；清 turn-diff-header / activity-header 内
+  `bg-token-bg-secondary`；给 `size-token-button-composer` 上的 dropdown-background
+  图标固定深色前景（如 `#16181c`）。
+
+### 任务页对话滚不动
+
+原因：透明化后 `#root` 下主壳 `div.relative.flex.flex-col` 会被长对话撑到内容高度
+（可达数千 px）。子级 `thread-scroll-container`（`h-full` + `column-reverse`）跟着
+变成内容高，`scrollHeight === clientHeight`，内部失去滚动；外层 `body` 又是
+`overflow: hidden`，整页也滚不了。
+
+处理：背景开启时把 `body > #root` 与其下主壳锁在 `height/max-height: 100%`，主壳
+加 `min-height: 0` 与 `overflow: hidden`，让滚动回到 `thread-scroll-container`。
+
+### Composer 黑色渐变 / 「第 N 步」胶囊小黑底
+
+原因：输入框上方浮层背后有独立 `bg-gradient-to-t from-token-main-surface-primary
+to-transparent`（`h-7`，不一定带 `via-`）。表面透明度为 0 时，这条 `#181818`
+渐变会衬在「第 N 步 / 文件已更改」胶囊后面，看起来像小黑底/黑边。
+
+处理：清所有 `bg-gradient-to-t` + `from-token-main-surface-primary` 的
+background-image（不要只匹配带 `via-` 的）；同时清胶囊 border/shadow，父层
+`overflow: visible`；composer 本身按独立变量打底。
 
 ### 站点、已安排、插件搜索黑条
 

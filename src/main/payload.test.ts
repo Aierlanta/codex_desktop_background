@@ -13,6 +13,8 @@ describe("renderer payload", () => {
     expect(payload).toContain("codex-background-layer");
     expect(payload).toContain("pointer-events: none");
     expect(payload).toContain("body > #root");
+    expect(payload).toContain("body > #root > div.relative.flex.flex-col");
+    expect(payload).toContain("max-height: 100%");
     expect(payload).not.toContain("body > :not(#codex-background-layer)");
     expect(payload).toContain("main.main-surface");
     expect(payload).toContain('body > [role=\\"dialog\\"]');
@@ -22,6 +24,21 @@ describe("renderer payload", () => {
     expect(payload).toContain("media.playbackRate");
     expect(payload).toContain(".app-shell-main-content-viewport");
     expect(payload).toContain(".home-banners");
+    expect(payload).toContain("bg-token-dropdown-background");
+    expect(payload).toContain("box-shadow: none !important");
+    expect(payload).toContain("border-token-border");
+    expect(payload).toContain("border-width: 0 !important");
+    expect(payload).toContain(
+      'bg-gradient-to-t\\"][class*=\\"from-token-main-surface-primary\\"]',
+    );
+    expect(payload).not.toContain("via-token-main-surface-primary");
+    expect(payload).toContain("activity-header");
+    expect(payload).toContain("bg-token-main-surface-primary");
+    expect(payload).toContain("turn-diff-header");
+    expect(payload).toContain("bg-token-bg-secondary");
+    expect(payload).toContain("DndDescribedBy-");
+    expect(payload).toContain("size-token-button-composer");
+    expect(payload).toContain("text-token-dropdown-background");
     expect(payload).toContain('[class~=\\"sticky\\"][class*=\\"bg-token-main-surface-primary\\"]:has(input[type=\\"text\\"])');
     expect(payload).toContain('[class~=\\"h-full\\"][class~=\\"min-h-0\\"][class~=\\"flex-col\\"]');
     expect(payload).toContain('aside[class~=\\"ml-auto\\"]');

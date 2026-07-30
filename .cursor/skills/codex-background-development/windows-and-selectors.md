@@ -107,6 +107,26 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 
 ## 输入和弹层
 
+### 任务时间线工具小图标
+
+- 用户入口：任务页中间「已使用 Fast Context / 浏览器 / Zhi…」活动行左侧小图标。
+- 稳定入口：`[class*="activity-header"] :is(svg, img)[class*="bg-token-main-surface-primary"]`
+- 汇总行多为 `button…activity-header`；单独展开的 MCP 行（如 Zhi）是
+  `div.group/activity-header`。不要只写 `button`，否则 MCP 小图标仍留 `#181818` 小黑框。
+- 原生为 `#181818` 实底；背景工具开启时必须透明。
+- 「已编辑 N 个文件」左侧还有 `bg-token-bg-secondary` 图标壳（约 92% 黑），一并清掉。
+
+### dnd-kit 无障碍节点
+
+- `#DndDescribedBy-*`、`#DndLiveRegion-*` 必须 `display: none`。
+- 透明化后若露出英文 “To pick up a draggable item…”，就是这俩节点漏隐。
+
+### 发送 / 停止圆钮图标
+
+- 稳定入口：`button[class*="size-token-button-composer"] svg[class*="text-token-dropdown-background"]`
+- 白底钮 + dropdown-background 色图标；菜单透明度为 0 时图标会变成白色而消失，
+  需固定深色前景。
+
 ### Composer
 
 - 稳定入口：`.composer-surface-chrome`
@@ -116,7 +136,11 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
   - `box-shadow`
   - `border-color`
   - `backdrop-filter`
-  - `bg-gradient-to-t`、`from-token-main-surface-primary` 等底部渐变
+  - `bg-gradient-to-t` + `from-token-main-surface-primary` 底部渐变（含只有
+    `from`/`to-transparent`、没有 `via` 的那条；输入框上方「第 N 步 / 文件已更改」
+    背后的 `h-7` 遮罩漏清时会变成胶囊小黑底）
+  - 底部文件变更胶囊本身：`rounded-3xl border-token-border bg-token-input-background`，
+    透明度为 0 时还要 `border-width: 0`，父层 `overflow: visible`
 
 ### 普通搜索输入
 
@@ -124,13 +148,17 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 - 透明度：`--cbg-composer-opacity`
 - 不要让外部 sticky 再叠一层相同色。
 
-### 下拉菜单、右键菜单、命令面板
+### 下拉菜单、右键菜单、命令面板、环境信息浮层
 
 - `[role="menu"]`
 - `[role="listbox"]`
 - `[class*="bg-token-dropdown-background"]:not(.composer-surface-chrome)`
 - 透明度：`--cbg-menu-opacity`
+- 必须清：`box-shadow` / `electron:elevation-prominent`。菜单透明度为 0 时底色全透，
+  原生 0.5px elevation 描边会变成「变更」浮层上的小黑边。
 - 内部同 token 子层透明，避免菜单内部再叠色。
+- 任务页右上「环境信息 / 变更 / 提交或推送」是绝对定位浮层，不是
+  `aside.ml-auto.z-[41]`；它用 `rounded-3xl bg-token-dropdown-background`，走菜单透明度。
 
 ## 右侧辅助栏
 

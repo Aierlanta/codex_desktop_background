@@ -8,10 +8,20 @@ html.codex-background-active body {
 }
 
 /* 只抬主应用根节点，不要用 body > :not(layer) 扫到 portal。
-   否则临时聊天确认框等 fixed dialog 会被改成 relative，移出视口后仍拦截焦点。 */
+   否则临时聊天确认框等 fixed dialog 会被改成 relative，移出视口后仍拦截焦点。
+   同时把主壳锁在视口高度：透明化后 #root 下 flex 壳会被长对话撑高，
+   thread-scroll-container 跟着变成内容高，内部失去滚动（body 又是 overflow:hidden）。 */
 html.codex-background-active body > #root {
   position: relative;
   z-index: 1;
+  height: 100%;
+  max-height: 100%;
+}
+html.codex-background-active body > #root > div.relative.flex.flex-col {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 #codex-background-layer {
@@ -134,7 +144,43 @@ html.codex-background-active main.main-surface [class*="bg-token-input-backgroun
   box-shadow: none !important;
   border-color: transparent !important;
 }
-html.codex-background-active main.main-surface [class*="bg-gradient-to-t"][class*="from-token-main-surface-primary"][class*="via-token-main-surface-primary"] {
+/* 底部「N 个文件已更改」胶囊：透明度为 0 时 1px border + overflow 裁剪会留下黑边 */
+html.codex-background-active main.main-surface div.rounded-3xl:has(> [class*="bg-token-input-background"][class*="rounded-3xl"]) {
+  overflow: visible !important;
+}
+html.codex-background-active main.main-surface div[class*="rounded-3xl"][class*="border-token-border"][class*="bg-token-input-background"] {
+  border-width: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+/* 任务时间线工具小图标：原生 svg/img 带 main-surface 实底 #181818。
+   「已使用 xxx」汇总行是 button.activity-header；单独展开的 MCP 行（如 Zhi）是
+   div.group/activity-header，必须一起清，否则只修了汇总行、MCP 仍留小黑框。 */
+html.codex-background-active main.main-surface [class*="activity-header"] :is(svg, img)[class*="bg-token-main-surface-primary"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+/* 「已编辑 N 个文件」左侧圆角图标底：bg-token-bg-secondary 约 92% 黑，
+   表面透明后会变成明显小黑块。 */
+html.codex-background-active main.main-surface [class*="turn-diff-header"] [class*="bg-token-bg-secondary"],
+html.codex-background-active main.main-surface [class*="activity-header"] [class*="bg-token-bg-secondary"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+/* dnd-kit 拖拽无障碍说明：原生应 display:none。侧栏/主区透明后若内联样式丢失，
+   会在窗口底部露出大段英文 “To pick up a draggable item…”。 */
+html.codex-background-active [id^="DndDescribedBy-"],
+html.codex-background-active [id^="DndLiveRegion-"] {
+  display: none !important;
+}
+/* 发送/停止白底圆钮：图标用 text-token-dropdown-background。菜单透明度为 0 时
+   该 token 色失效，图标变成白色，贴在白钮上等于“图标没了”。 */
+html.codex-background-active button[class*="size-token-button-composer"] svg[class*="text-token-dropdown-background"] {
+  color: #16181c !important;
+}
+/* 输入框上方「第 N 步 / 文件已更改」浮层背后的遮罩：只有 from + to-transparent，没有 via。
+   旧选择器要求 via-token，会漏掉这条 h-7 渐变，透明度为 0 时看起来就像胶囊小黑底。 */
+html.codex-background-active main.main-surface [class*="bg-gradient-to-t"][class*="from-token-main-surface-primary"] {
   background-color: transparent !important;
   background-image: none !important;
 }
@@ -151,13 +197,14 @@ html.codex-background-active [class~="app-header-tint"][class*="application-menu
   backdrop-filter: none !important;
 }
 
-/* 弹出层：下拉菜单、右键上下文菜单、命令面板等（portal 渲染，原生为不透明实底）。
-   统一按菜单不透明度打底并模糊，让背景图可控地透出 */
+/* 弹出层：下拉菜单、右键上下文菜单、命令面板、任务页右上「环境信息/变更」浮层等。
+   统一按菜单不透明度打底；清 elevation 描边，避免透明度为 0 时只剩 0.5px 黑边。 */
 html.codex-background-active [role="menu"],
 html.codex-background-active [role="listbox"],
 html.codex-background-active [class*="bg-token-dropdown-background"]:not(.composer-surface-chrome) {
   background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
+  box-shadow: none !important;
 }
 /* 菜单内部的分组标题/子层继承透明，避免叠加出不透明色块 */
 html.codex-background-active [class*="bg-token-dropdown-background"]:not(.composer-surface-chrome) [class*="bg-token-dropdown-background"] {
