@@ -8,9 +8,11 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 ### Windows 顶部应用菜单栏
 
 - 用户入口：窗口最上方“文件、编辑、视图、帮助”。
-- 特征：`[class~="app-header-tint"][class*="application-menu-top-bar"]`
+- 特征（旧）：`[class~="app-header-tint"][class*="application-menu-top-bar"]`
+- 特征（新）：`[class*="ApplicationMenuTopBar"]`
+- 兼容写法：`:is([class~="app-header-tint"][class*="application-menu-top-bar"], [class*="ApplicationMenuTopBar"])`
 - 透明度：内容区 `--cbg-surface-opacity`。
-- 注意：它位于 `main.main-surface` 外，必须单独打底。
+- 注意：它位于主内容 `main` 外，必须单独打底。
 
 ### 左侧导航栏
 
@@ -26,15 +28,24 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 
 ### 主内容根
 
-- 稳定入口：`main.main-surface`
+- 稳定入口（旧）：`main.main-surface`
+- 稳定入口（26.727+ CSS Modules）：`main[class*="MainContentSurface"]`
+- 兼容写法：`main:is(.main-surface, [class*="MainContentSurface"])`
 - 规则：自身透明，不在这里打内容区底色。
 - 必须保留：`pointer-events: auto`。Codex 会给 `body` 设 `pointer-events: none`，侧栏有
   `pointer-events-auto`，但临时聊天等主区布局不会补回；缺了输入框会点穿。
 - 背景层叠只抬 `body > #root`，不要写成 `body > :not(#codex-background-layer)`，
   否则临时聊天确认框等 portal dialog 会丢掉 `position: fixed` 并抢走输入焦点。
-- 内容区唯一打底层：`.app-shell-main-content-viewport`
+- 内容区唯一打底层（旧）：`.app-shell-main-content-viewport`
+- 内容区唯一打底层（新）：`[class*="MainContentViewport"]`
+- 兼容写法：`:is(.app-shell-main-content-viewport, [class*="MainContentViewport"])`
+- 内容框：`:is(.app-shell-main-content-frame, [class*="MainContentFrame"])`
+- 顶部淡出：`:is(.app-shell-main-content-top-fade, [class*="MainContentTopFade"])`
+- 顶部栏：`:is(header.app-header-tint, header[class*="Header"])`
 - 透明度：`--cbg-surface-opacity`。
 - `.app-shell-main-content-frame`、`[role="main"]` 和全高页面壳应透明。
+- 拉取请求 / 站点 / 已安排 / 插件等 list-detail 页常常没有 `[role="main"]`，
+  而是用 `:is(div, section, aside)[class~="bg-token-main-surface-primary"]` 铺满；这些壳要清透明。
 - 设置页会在 viewport 内再嵌一层 `div.main-surface.flex.h-full.min-h-0.flex-col`，
   原生实底约为 `#181818`；必须单独透明，否则会挡住全局背景。
 - 设置分组卡片：`[class~="overflow-hidden"][class~="rounded-2xl"][class~="border"][class*="border-token-border"]`
@@ -95,14 +106,14 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 稳定结构：
 
 ```css
-.app-shell-main-content-viewport
+:is(.app-shell-main-content-viewport, [class*="MainContentViewport"])
   [class~="sticky"][class*="bg-token-main-surface-primary"]:has(input[type="text"])
 ```
 
 处理内容：
 
 - sticky 的 `background-color` 透明；
-- sticky 的 `::after` 背景和渐变关闭；
+- sticky 的 `::after` 背景和渐变关闭（含 Tailwind v4 的 `after:bg-linear-to-b`）；
 - 内部 `div.no-drag:has(> input[type="text"])` 跟随 `--cbg-composer-opacity`。
 
 ## 输入和弹层

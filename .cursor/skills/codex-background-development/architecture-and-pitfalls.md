@@ -216,6 +216,24 @@ Tauri 单实例插件必须是 Builder 注册的第一个插件。第二次启�
 - 内部壳透明；
 - 关闭 backdrop-filter。
 
+### Codex 更新后主内容整页实底、侧栏仍透出背景
+
+原因：26.727+ 把 `main.main-surface`、`.app-shell-main-content-viewport`、
+`.app-shell-main-content-frame`、`.app-shell-main-content-top-fade`、
+`app-header-tint` / `application-menu-top-bar` 收成 CSS Modules
+（例如 `_MainContentSurface_*`、`_MainContentViewport_*`、
+`_ApplicationMenuTopBar_*`）。旧全局类选择器全部失效后，原生
+`rgb(24,24,24)` 实底重新盖住背景层；侧栏仍保留 `aside.app-shell-left-panel`，
+所以会出现“只有侧栏透出背景”的假象。
+
+处理：
+
+- 主壳、viewport、frame、top-fade、顶栏全部用旧类 + `[class*="MainContent…"]` /
+  `[class*="ApplicationMenuTopBar"]` 的 `:is(...)` 兼容写法；
+- list/detail 页额外清
+  `main … :is(div, section, aside)[class~="bg-token-main-surface-primary"]`；
+- Tailwind v4 的 `bg-linear-to-t` 与旧 `bg-gradient-to-t` 一并清掉。
+
 ### 临时聊天输入框无光标、无法输入
 
 原因有两层：

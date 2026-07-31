@@ -80,75 +80,84 @@ html.codex-background-active div[class~="fixed"][class~="left-0"][class~="z-[42]
   box-shadow: none !important;
 }
 
+/* 26.727+ 把旧全局类 main-surface / app-shell-main-content-* / app-header-tint
+   收成 CSS Modules（_MainContentSurface_*、_MainContentViewport_* 等）。
+   旧全局类与模块局部类名并存，避免再因 Codex 更新整页变实底。 */
 html.codex-background-active aside.app-shell-left-panel nav,
 html.codex-background-active div[class~="fixed"][class~="left-0"][class~="z-[42]"][class*="top-(--height-toolbar-sm)"] > aside[class*="bg-token-main-surface-primary"] nav,
-html.codex-background-active main.main-surface > header.app-header-tint,
-html.codex-background-active main.main-surface .app-shell-main-content-top-fade {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) > :is(header.app-header-tint, header[class*="Header"]),
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-top-fade, [class*="MainContentTopFade"]) {
   background: transparent !important;
 }
 
 /* Codex 桌面端 body 默认 pointer-events:none，侧栏会自己开回 auto。
    主区与 portal 弹层需要显式接回点击；只恢复交互，不改透明底。 */
-html.codex-background-active main.main-surface,
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]),
 html.codex-background-active body > [role="dialog"],
 html.codex-background-active body > .codex-dialog {
   pointer-events: auto !important;
 }
 
-html.codex-background-active main.main-surface {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) {
   background: transparent !important;
   backdrop-filter: none !important;
 }
 
-html.codex-background-active main.main-surface .app-shell-main-content-viewport {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) {
   background: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-surface-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
 }
 
-html.codex-background-active main.main-surface [role="main"],
-html.codex-background-active main.main-surface .app-shell-main-content-frame,
-html.codex-background-active main.main-surface [class~="bg-token-main-surface-primary"][class~="h-full"][class~="w-full"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [role="main"],
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-frame, [class*="MainContentFrame"]),
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class~="bg-token-main-surface-primary"][class~="h-full"][class~="w-full"] {
   background: transparent !important;
 }
+/* 新版 list/detail（拉取请求、站点、已安排、插件）不再用 [role=main]，
+   而用 token surface 铺满。整页壳统一清掉，卡片/横幅再按菜单透明度单独打底。 */
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(div, section, aside)[class~="bg-token-main-surface-primary"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
 /* 设置页等内容会在 viewport 内再嵌一层 div.main-surface（原生实底 #181818），
-   外层 main.main-surface 透明后仍会被这层挡住全局背景。 */
-html.codex-background-active main.main-surface .app-shell-main-content-viewport div.main-surface {
+   外层 main 透明后仍会被这层挡住全局背景。 */
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) div:is(.main-surface, [class*="MainContentSurface"]) {
   background: transparent !important;
   backdrop-filter: none !important;
 }
 /* 设置页分组卡片（rounded-2xl + border-token-border）原生约 #232323 实底。
    跟随菜单/面板不透明度，避免在透明设置页上再盖一整块不透卡片。 */
-html.codex-background-active main.main-surface .app-shell-main-content-viewport div.main-surface [class~="overflow-hidden"][class~="rounded-2xl"][class~="border"][class*="border-token-border"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) div:is(.main-surface, [class*="MainContentSurface"]) [class~="overflow-hidden"][class~="rounded-2xl"][class~="border"][class*="border-token-border"] {
   background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
 }
 /* 设置页提示横幅（例如个性化页“并非所有模型都支持…”），含警告色叠加层。 */
-html.codex-background-active main.main-surface .app-shell-main-content-viewport div.main-surface aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) div:is(.main-surface, [class*="MainContentSurface"]) aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] {
   background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
   box-shadow: none !important;
 }
-html.codex-background-active main.main-surface .app-shell-main-content-viewport div.main-surface aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] [class*="bg-token-input-validation-warning-background"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) div:is(.main-surface, [class*="MainContentSurface"]) aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] [class*="bg-token-input-validation-warning-background"] {
   background-color: transparent !important;
 }
-html.codex-background-active main.main-surface .app-shell-main-content-viewport [class~="h-full"][class~="min-h-0"][class~="flex-col"][class*="bg-token-main-surface-primary"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) [class~="h-full"][class~="min-h-0"][class~="flex-col"][class*="bg-token-main-surface-primary"] {
   background-color: transparent !important;
 }
 
 html.codex-background-active .composer-surface-chrome,
-html.codex-background-active main.main-surface div.no-drag:has(> input[type="text"]),
-html.codex-background-active main.main-surface div.no-drag:has(> textarea),
-html.codex-background-active main.main-surface [class*="bg-token-input-background"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) div.no-drag:has(> input[type="text"]),
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) div.no-drag:has(> textarea),
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class*="bg-token-input-background"] {
   background: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-composer-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
   box-shadow: none !important;
   border-color: transparent !important;
 }
 /* 底部「N 个文件已更改」胶囊：透明度为 0 时 1px border + overflow 裁剪会留下黑边 */
-html.codex-background-active main.main-surface div.rounded-3xl:has(> [class*="bg-token-input-background"][class*="rounded-3xl"]) {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) div.rounded-3xl:has(> [class*="bg-token-input-background"][class*="rounded-3xl"]) {
   overflow: visible !important;
 }
-html.codex-background-active main.main-surface div[class*="rounded-3xl"][class*="border-token-border"][class*="bg-token-input-background"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) div[class*="rounded-3xl"][class*="border-token-border"][class*="bg-token-input-background"] {
   border-width: 0 !important;
   border-color: transparent !important;
   box-shadow: none !important;
@@ -156,14 +165,14 @@ html.codex-background-active main.main-surface div[class*="rounded-3xl"][class*=
 /* 任务时间线工具小图标：原生 svg/img 带 main-surface 实底 #181818。
    「已使用 xxx」汇总行是 button.activity-header；单独展开的 MCP 行（如 Zhi）是
    div.group/activity-header，必须一起清，否则只修了汇总行、MCP 仍留小黑框。 */
-html.codex-background-active main.main-surface [class*="activity-header"] :is(svg, img)[class*="bg-token-main-surface-primary"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class*="activity-header"] :is(svg, img)[class*="bg-token-main-surface-primary"] {
   background: transparent !important;
   background-color: transparent !important;
 }
 /* 「已编辑 N 个文件」左侧圆角图标底：bg-token-bg-secondary 约 92% 黑，
    表面透明后会变成明显小黑块。 */
-html.codex-background-active main.main-surface [class*="turn-diff-header"] [class*="bg-token-bg-secondary"],
-html.codex-background-active main.main-surface [class*="activity-header"] [class*="bg-token-bg-secondary"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class*="turn-diff-header"] [class*="bg-token-bg-secondary"],
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class*="activity-header"] [class*="bg-token-bg-secondary"] {
   background: transparent !important;
   background-color: transparent !important;
 }
@@ -180,19 +189,20 @@ html.codex-background-active button[class*="size-token-button-composer"] svg[cla
 }
 /* 输入框上方「第 N 步 / 文件已更改」浮层背后的遮罩：只有 from + to-transparent，没有 via。
    旧选择器要求 via-token，会漏掉这条 h-7 渐变，透明度为 0 时看起来就像胶囊小黑底。 */
-html.codex-background-active main.main-surface [class*="bg-gradient-to-t"][class*="from-token-main-surface-primary"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class*="bg-gradient-to-t"][class*="from-token-main-surface-primary"],
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class*="bg-linear-to-t"][class*="from-token-main-surface-primary"] {
   background-color: transparent !important;
   background-image: none !important;
 }
-html.codex-background-active main.main-surface .app-shell-main-content-viewport [class~="sticky"][class*="bg-token-main-surface-primary"]:has(input[type="text"]),
-html.codex-background-active main.main-surface .app-shell-main-content-viewport [class~="sticky"][class*="bg-token-main-surface-primary"]:has(input[type="text"])::after {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) [class~="sticky"][class*="bg-token-main-surface-primary"]:has(input[type="text"]),
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) [class~="sticky"][class*="bg-token-main-surface-primary"]:has(input[type="text"])::after {
   background-color: transparent !important;
   background-image: none !important;
 }
 
-/* 窗口级应用菜单栏：独立于 main.main-surface，原生依赖下层不透明底色，
+/* 窗口级应用菜单栏：独立于主内容 main，原生依赖下层不透明底色，
    需要单独给表面色打底，否则背景图会从这条全宽栏里直接透出来 */
-html.codex-background-active [class~="app-header-tint"][class*="application-menu-top-bar"] {
+html.codex-background-active :is([class~="app-header-tint"][class*="application-menu-top-bar"], [class*="ApplicationMenuTopBar"]) {
   background: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-surface-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
 }
@@ -214,7 +224,7 @@ html.codex-background-active [class*="bg-token-dropdown-background"]:not(.compos
 
 /* 首页推荐横幅（例如“启用快速模式”）是独立于输入栏的原生卡片。
    让卡片跟随菜单/右侧面板不透明度，避免固定实底悬在透明首页上。 */
-html.codex-background-active main.main-surface .home-banners > aside[class*="bg-token-main-surface-primary"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) .home-banners > aside[class*="bg-token-main-surface-primary"] {
   background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
   box-shadow: none !important;
@@ -222,23 +232,23 @@ html.codex-background-active main.main-surface .home-banners > aside[class*="bg-
 
 /* 任务页右侧辅助栏的内容会在任务/浏览器/终端间切换，不能依赖内部按钮识别。
    使用稳定的右侧 aside 容器统一打底，并清掉所有内容页自带的 main-surface 实底。 */
-html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] {
   background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
 }
-html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] [class*="bg-token-main-surface-primary"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] [class*="bg-token-main-surface-primary"] {
   background-color: transparent !important;
 }
-html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card,
-html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] diffs-container,
-html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] file-tree-container {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card,
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] diffs-container,
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] file-tree-container {
   background-color: transparent !important;
   background-image: none !important;
   --color-token-main-surface-primary: transparent !important;
 }
 /* diffs-container 渲染真实 [data-diff] 前，会先在 Shadow :host 写入 #111111。
    把所有底色变量直接固定在宿主上，让占位、虚拟滚动和正式内容从首帧起就继承透明值。 */
-html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] diffs-container {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] diffs-container {
   --codex-diffs-surface: transparent !important;
   --codex-diffs-context-surface: transparent !important;
   --codex-diffs-separator-surface: transparent !important;
@@ -253,7 +263,7 @@ html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z
   --codex-diffs-addition-number: color-mix(in srgb, var(--diffs-addition-base, #40c977) 20%, transparent) !important;
   --codex-diffs-deletion-number: color-mix(in srgb, var(--diffs-deletion-base, #fa423e) 20%, transparent) !important;
 }
-html.codex-background-active main.main-surface aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card > [class~="sticky"][class~="backdrop-blur-sm"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card > [class~="sticky"][class~="backdrop-blur-sm"] {
   background-color: transparent !important;
   backdrop-filter: none !important;
 }
@@ -494,7 +504,7 @@ export function buildRendererPayload(input: PayloadInput) {
       // 审阅 diff 使用 Shadow DOM，普通页面 CSS 无法进入其内部。
       // 对每个已挂载的 diff 宿主注入同一份轻量样式；定时 install 会覆盖后续新建的宿主。
       document.querySelectorAll(
-        'main.main-surface aside[class~="ml-auto"][class*="z-[41]"] diffs-container'
+        'main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] diffs-container'
       ).forEach((host) => {
         installReviewShadowStyle(host);
       });

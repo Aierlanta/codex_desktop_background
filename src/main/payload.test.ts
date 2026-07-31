@@ -16,13 +16,17 @@ describe("renderer payload", () => {
     expect(payload).toContain("body > #root > div.relative.flex.flex-col");
     expect(payload).toContain("max-height: 100%");
     expect(payload).not.toContain("body > :not(#codex-background-layer)");
-    expect(payload).toContain("main.main-surface");
+    expect(payload).toContain('main:is(.main-surface, [class*=\\"MainContentSurface\\"])');
     expect(payload).toContain('body > [role=\\"dialog\\"]');
     expect(payload).toContain("pointer-events: auto !important");
     expect(payload).toContain("codex-background-home");
     expect(payload).toContain("codex-background-task");
     expect(payload).toContain("media.playbackRate");
+    expect(payload).toContain("MainContentViewport");
     expect(payload).toContain(".app-shell-main-content-viewport");
+    expect(payload).toContain("ApplicationMenuTopBar");
+    expect(payload).toContain("MainContentFrame");
+    expect(payload).toContain("MainContentTopFade");
     expect(payload).toContain(".home-banners");
     expect(payload).toContain("bg-token-dropdown-background");
     expect(payload).toContain("box-shadow: none !important");
@@ -31,9 +35,13 @@ describe("renderer payload", () => {
     expect(payload).toContain(
       'bg-gradient-to-t\\"][class*=\\"from-token-main-surface-primary\\"]',
     );
+    expect(payload).toContain(
+      'bg-linear-to-t\\"][class*=\\"from-token-main-surface-primary\\"]',
+    );
     expect(payload).not.toContain("via-token-main-surface-primary");
     expect(payload).toContain("activity-header");
     expect(payload).toContain("bg-token-main-surface-primary");
+    expect(payload).toContain(':is(div, section, aside)[class~=\\"bg-token-main-surface-primary\\"]');
     expect(payload).toContain("turn-diff-header");
     expect(payload).toContain("bg-token-bg-secondary");
     expect(payload).toContain("DndDescribedBy-");
@@ -56,6 +64,9 @@ describe("renderer payload", () => {
     expect(payload).not.toContain(':has(ul button[class*=\\"bg-token-bg-fog\\"])');
     expect(payload).not.toContain("backdrop-filter: blur");
     expect(payload).not.toContain("__DREAM_");
+    expect(payload).not.toContain("main.main-surface ");
+    expect(payload).not.toContain("main.main-surface>");
+    expect(payload).not.toContain("main.main-surface.");
   });
 
   it("serializes media URLs instead of interpolating executable source", () => {
