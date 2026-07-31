@@ -176,9 +176,11 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 ### 稳定外层
 
 ```css
-main.main-surface aside[class~="ml-auto"][class*="z-[41]"]
+main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"]
 ```
 
+- 旧版右栏常有 `ml-auto`，26.727+ 可能改成 `ltr:ms-auto rtl:me-auto`；
+  `z-[41]` 是当前版本仍保留的稳定锚点。
 - 透明度：`--cbg-menu-opacity`
 - 它承载审阅、文件树、浏览器、终端等不同内容。
 - 只给这个稳定 aside 打一层底；内部 `bg-token-main-surface-primary` 默认透明。

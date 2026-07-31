@@ -3,7 +3,7 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Component, Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use chrono::Utc;
@@ -214,6 +214,15 @@ pub struct MediaLibrary {
     items: Vec<MediaItem>,
     /// 文件夹源的顺序轮播游标；仅内存态，不写入 library.json。
     folder_cursors: HashMap<String, usize>,
+    /// 文件夹源在随机模式下当前已经选中的文件，保证预览和 Codex 使用同一张图。
+    folder_selections: HashMap<String, ResolvedMedia>,
+    /// 文件夹文件列表缓存，避免每次应用/轮播都递归扫几千张图。
+    folder_listings: HashMap<String, CachedFolderListing>,
+}
+
+struct CachedFolderListing {
+    files: Vec<PathBuf>,
+    cached_at: Instant,
 }
 
 impl MediaLibrary {
@@ -229,6 +238,8 @@ impl MediaLibrary {
             catalog_path,
             items: Vec::new(),
             folder_cursors: HashMap::new(),
+            folder_selections: HashMap::new(),
+            folder_listings: HashMap::new(),
         };
         match fs::read_to_string(&library.catalog_path) {
             Ok(content) => match serde_json::from_str::<Vec<MediaItem>>(&content) {
@@ -280,8 +291,7 @@ impl MediaLibrary {
 
     pub fn path_for(&self, item: &MediaItem) -> Result<PathBuf, String> {
         if item.origin == MediaOrigin::Folder {
-            let resolved = self.resolve_folder_media(item, SlideshowOrder::Sequential)?;
-            return Ok(resolved.path);
+            return Err("文件夹源没有受管媒体文件路径，请使用 resolve_playback。".to_string());
         }
         let path = Path::new(&item.file_name);
         let mut components = path.components();
@@ -352,29 +362,66 @@ impl MediaLibrary {
         Ok(files)
     }
 
+    fn folder_files_cached(&mut self, item: &MediaItem) -> Result<Vec<PathBuf>, String> {
+        const TTL: Duration = Duration::from_secs(60);
+        if let Some(cached) = self.folder_listings.get(&item.id) {
+            if cached.cached_at.elapsed() < TTL {
+                return Ok(cached.files.clone());
+            }
+        }
+        let folder = Self::folder_path_for(item)?;
+        let files = Self::list_folder_media(&folder)?;
+        self.folder_listings.insert(
+            item.id.clone(),
+            CachedFolderListing {
+                files: files.clone(),
+                cached_at: Instant::now(),
+            },
+        );
+        Ok(files)
+    }
+
     fn resolve_folder_media(
-        &self,
+        &mut self,
         item: &MediaItem,
         order: SlideshowOrder,
     ) -> Result<ResolvedMedia, String> {
-        let folder = Self::folder_path_for(item)?;
-        let files = Self::list_folder_media(&folder)?;
+        let files = self.folder_files_cached(item)?;
         if files.is_empty() {
             return Err("文件夹中没有支持的图片或视频。".to_string());
         }
-        let index = match order {
+        let path = match order {
             SlideshowOrder::Random => {
+                if let Some(selected) = self.folder_selections.get(&item.id) {
+                    if files.contains(&selected.path) {
+                        let resolved = Self::resolve_folder_file(selected.path.clone())?;
+                        self.folder_selections
+                            .insert(item.id.clone(), resolved.clone());
+                        return Ok(resolved);
+                    }
+                }
                 let seed = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .map(|duration| duration.as_nanos())
                     .unwrap_or_default();
-                (seed % files.len() as u128) as usize
+                files[(seed % files.len() as u128) as usize].clone()
             }
             SlideshowOrder::Sequential => {
-                self.folder_cursors.get(&item.id).copied().unwrap_or(0) % files.len()
+                files[self.folder_cursors.get(&item.id).copied().unwrap_or(0) % files.len()]
+                    .clone()
             }
         };
-        let path = files[index % files.len()].clone();
+        let resolved = Self::resolve_folder_file(path)?;
+        if matches!(order, SlideshowOrder::Random) {
+            self.folder_selections
+                .insert(item.id.clone(), resolved.clone());
+        } else {
+            self.folder_selections.remove(&item.id);
+        }
+        Ok(resolved)
+    }
+
+    fn resolve_folder_file(path: PathBuf) -> Result<ResolvedMedia, String> {
         let chosen_extension = extension(&path);
         let media_type =
             media_type(&chosen_extension).ok_or_else(|| "不支持此图片或视频格式。".to_string())?;
@@ -401,8 +448,7 @@ impl MediaLibrary {
         if item.origin != MediaOrigin::Folder {
             return Ok(());
         }
-        let folder = Self::folder_path_for(item)?;
-        let files = Self::list_folder_media(&folder)?;
+        let files = self.folder_files_cached(item)?;
         if files.is_empty() {
             return Err("文件夹中没有支持的图片或视频。".to_string());
         }
@@ -415,6 +461,22 @@ impl MediaLibrary {
                 .saturating_add(1)
                 % files.len();
             self.folder_cursors.insert(item.id.clone(), next);
+            self.folder_selections.remove(&item.id);
+        } else {
+            let current = self
+                .folder_selections
+                .get(&item.id)
+                .map(|selected| selected.path.clone());
+            let seed = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default();
+            let mut index = (seed % files.len() as u128) as usize;
+            if files.len() > 1 && current.as_ref() == Some(&files[index]) {
+                index = (index + 1) % files.len();
+            }
+            let selected = Self::resolve_folder_file(files[index].clone())?;
+            self.folder_selections.insert(item.id.clone(), selected);
         }
         Ok(())
     }
@@ -746,6 +808,8 @@ impl MediaLibrary {
         };
         self.items.retain(|candidate| candidate.id != id);
         self.folder_cursors.remove(id);
+        self.folder_selections.remove(id);
+        self.folder_listings.remove(id);
         self.save_catalog()?;
         if item.origin == MediaOrigin::Folder {
             // 文件夹源只删除目录引用，绝不触碰用户原目录里的文件。
@@ -825,6 +889,41 @@ mod tests {
         assert!(resolved.path.starts_with(&canonical_source));
         assert!(library.remove(&imported.added[0].id).unwrap());
         assert!(source_dir.join("bg-0.png").is_file());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn random_folder_refresh_keeps_preview_and_playback_on_same_file() {
+        let root = std::env::temp_dir().join(format!("codex-folder-random-{}", Uuid::new_v4()));
+        let source_dir = root.join("wallpapers");
+        fs::create_dir_all(&source_dir).unwrap();
+        for index in 0..3 {
+            let path = source_dir.join(format!("bg-{index}.png"));
+            File::create(&path)
+                .unwrap()
+                .write_all(&png_header())
+                .unwrap();
+        }
+        let mut library = MediaLibrary::load(&root.join("data")).unwrap();
+        let mut imported = library.import_folder(&source_dir);
+        let item = imported.added.remove(0);
+
+        let first = library
+            .resolve_playback(&item, SlideshowOrder::Random, false)
+            .unwrap();
+        let same_selection = library
+            .resolve_playback(&item, SlideshowOrder::Random, false)
+            .unwrap();
+        assert_eq!(first.path, same_selection.path);
+
+        library
+            .advance_folder_cursor(&item, SlideshowOrder::Random)
+            .unwrap();
+        let refreshed = library
+            .resolve_playback(&item, SlideshowOrder::Random, false)
+            .unwrap();
+        assert_ne!(first.path, refreshed.path);
+
         let _ = fs::remove_dir_all(root);
     }
 }

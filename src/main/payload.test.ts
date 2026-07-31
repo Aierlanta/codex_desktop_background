@@ -49,10 +49,12 @@ describe("renderer payload", () => {
     expect(payload).toContain("text-token-dropdown-background");
     expect(payload).toContain('[class~=\\"sticky\\"][class*=\\"bg-token-main-surface-primary\\"]:has(input[type=\\"text\\"])');
     expect(payload).toContain('[class~=\\"h-full\\"][class~=\\"min-h-0\\"][class~=\\"flex-col\\"]');
-    expect(payload).toContain('aside[class~=\\"ml-auto\\"]');
-    expect(payload).toContain('aside[class~=\\"ml-auto\\"][class*=\\"z-[41]\\"] [class*=\\"bg-token-main-surface-primary\\"]');
+    expect(payload).toContain('aside[class*=\\"z-[41]\\"]');
+    expect(payload).toContain('aside[class*=\\"z-[41]\\"] [class*=\\"bg-token-main-surface-primary\\"]');
     expect(payload).toContain("diffs-container");
     expect(payload).toContain("file-tree-container");
+    expect(payload).toContain("group/file-diff");
+    expect(payload).toContain("group/diff-header");
     expect(payload).toContain("codex-background-review-shadow-style");
     expect(payload).toContain(":host,");
     expect(payload).toContain("--diffs-bg: transparent !important");

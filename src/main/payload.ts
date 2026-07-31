@@ -231,24 +231,27 @@ html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"
 }
 
 /* 任务页右侧辅助栏的内容会在任务/浏览器/终端间切换，不能依赖内部按钮识别。
-   使用稳定的右侧 aside 容器统一打底，并清掉所有内容页自带的 main-surface 实底。 */
-html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] {
+   新版 Codex 使用 ltr:ms-auto/rtl:me-auto，旧版使用 ml-auto；z-[41] 是两版
+   共同的稳定锚点。使用右侧 aside 统一打底，并清掉内容页自带的 main-surface 实底。 */
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] {
   background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
+  box-shadow: none !important;
 }
-html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] [class*="bg-token-main-surface-primary"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] [class*="bg-token-main-surface-primary"] {
   background-color: transparent !important;
+  background-image: none !important;
 }
-html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card,
-html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] diffs-container,
-html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] file-tree-container {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] .codex-review-diff-card,
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] diffs-container,
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] file-tree-container {
   background-color: transparent !important;
   background-image: none !important;
   --color-token-main-surface-primary: transparent !important;
 }
 /* diffs-container 渲染真实 [data-diff] 前，会先在 Shadow :host 写入 #111111。
    把所有底色变量直接固定在宿主上，让占位、虚拟滚动和正式内容从首帧起就继承透明值。 */
-html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] diffs-container {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] diffs-container {
   --codex-diffs-surface: transparent !important;
   --codex-diffs-context-surface: transparent !important;
   --codex-diffs-separator-surface: transparent !important;
@@ -263,9 +266,26 @@ html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"
   --codex-diffs-addition-number: color-mix(in srgb, var(--diffs-addition-base, #40c977) 20%, transparent) !important;
   --codex-diffs-deletion-number: color-mix(in srgb, var(--diffs-deletion-base, #fa423e) 20%, transparent) !important;
 }
-html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] .codex-review-diff-card > [class~="sticky"][class~="backdrop-blur-sm"] {
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] .codex-review-diff-card > [class~="sticky"][class~="backdrop-blur-sm"],
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] [class~="sticky"][class*="backdrop-blur-sm"] {
   background-color: transparent !important;
+  background-image: none !important;
   backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+/* 26.727+ 的 diff 文件壳移到 light DOM，类名是 group/file-diff；其自身仍保留
+   #181818，而 diffs-container 的 Shadow CSS 只覆盖内部节点。清掉文件壳和 sticky
+   标题，保留新增/删除行在 Shadow DOM 中的低强度语义色。 */
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] [class*="group/file-diff"] {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  --codex-diffs-surface-override: transparent !important;
+}
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] [class*="group/diff-header"] {
+  background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
+  background-image: none !important;
 }
 
 /* 集成终端面板：原生为多层嵌套的不透明实底(bg-token-main-surface-primary)。
@@ -504,7 +524,7 @@ export function buildRendererPayload(input: PayloadInput) {
       // 审阅 diff 使用 Shadow DOM，普通页面 CSS 无法进入其内部。
       // 对每个已挂载的 diff 宿主注入同一份轻量样式；定时 install 会覆盖后续新建的宿主。
       document.querySelectorAll(
-        'main:is(.main-surface, [class*="MainContentSurface"]) aside[class~="ml-auto"][class*="z-[41]"] diffs-container'
+        'main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] diffs-container'
       ).forEach((host) => {
         installReviewShadowStyle(host);
       });

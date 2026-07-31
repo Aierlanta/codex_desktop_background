@@ -57,9 +57,29 @@ fn lock<T>(value: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
 impl StudioState {
     fn load() -> Result<Self, String> {
         let data_directory = data_directory();
-        let settings = SettingsStore::load(&data_directory)?;
-        let library = MediaLibrary::load(&data_directory)?;
-        let media_server = MediaServer::start(&library)?;
+        let mut settings = SettingsStore::load(&data_directory)?;
+        let mut library = MediaLibrary::load(&data_directory)?;
+        // 旧版批量拷贝会留下成千上万失效 playlistIds，每次存盘/轮播都拖慢 UI。
+        {
+            let mut cleaned = settings.value();
+            let before = cleaned.playlist_ids.len();
+            cleaned
+                .playlist_ids
+                .retain(|id| library.get_by_id(id).is_some());
+            if let Some(active) = cleaned.active_media_id.clone() {
+                if library.get_by_id(&active).is_none() {
+                    cleaned.active_media_id = cleaned.playlist_ids.first().cloned().or_else(|| {
+                        library.items().first().map(|item| item.id.clone())
+                    });
+                }
+            }
+            if cleaned.playlist_ids.len() != before
+                || cleaned.active_media_id != settings.value().active_media_id
+            {
+                settings.save(cleaned)?;
+            }
+        }
+        let media_server = MediaServer::start(&mut library, settings.value().slideshow.order)?;
         let controller = CodexController::load(&data_directory);
         Ok(Self {
             data_directory: data_directory.clone(),
@@ -81,11 +101,7 @@ impl StudioState {
             .items()
             .into_iter()
             .map(|mut item| {
-                item.preview_url = Some(format!(
-                    "{}?v={}",
-                    media_server.url_for(&item.id),
-                    item.sha256.chars().take(12).collect::<String>()
-                ));
+                item.preview_url = Some(media_server.url_for(&item.id));
                 item
             })
             .collect();
@@ -98,8 +114,9 @@ impl StudioState {
     }
 
     fn sync_preview(&self) -> Result<(), String> {
-        let library = lock(&self.library)?;
-        lock(&self.media_server)?.sync(&library);
+        let order = lock(&self.settings)?.value().slideshow.order;
+        let mut library = lock(&self.library)?;
+        lock(&self.media_server)?.sync(&mut library, order);
         Ok(())
     }
 
@@ -289,6 +306,7 @@ async fn advance_slideshow(app: AppHandle) -> Result<(), String> {
             store.save(updated)?;
         }
         apply_live_if_active(&state).await?;
+        state.sync_preview()?;
         state.emit_snapshot(&app)?;
         Ok(())
     }
@@ -488,6 +506,7 @@ async fn set_active_media(
         store.save(settings)?;
     }
     apply_live_if_active(&state).await?;
+    state.sync_preview()?;
     state.emit_snapshot(&app)
 }
 
@@ -499,6 +518,7 @@ async fn update_settings(
 ) -> Result<AppSnapshot, String> {
     let behavior = lock(&state.settings)?.patch(patch)?.behavior;
     host::sync_autostart(behavior.auto_start_with_windows, behavior.start_minimized)?;
+    state.sync_preview()?;
     apply_live_if_active(&state).await?;
     state.emit_snapshot(&app)
 }
@@ -509,7 +529,13 @@ async fn apply_background(
     state: State<'_, StudioState>,
     request: Option<ApplyRequest>,
 ) -> Result<AppSnapshot, String> {
-    let payload = state.active_payload()?;
+    let app_for_payload = app.clone();
+    let payload = tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_payload.state::<StudioState>();
+        state.active_payload()
+    })
+    .await
+    .map_err(|error| error.to_string())??;
     let restart_requested = request
         .and_then(|request| request.restart_existing)
         .unwrap_or(false);
@@ -654,7 +680,7 @@ pub fn run() {
                 if close_to_tray {
                     let _ = window.hide();
                 } else {
-                    tauri::async_runtime::spawn(host::quit_and_restore(app));
+                    host::quit_without_touching_codex(app);
                 }
             }
         })

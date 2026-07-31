@@ -209,10 +209,11 @@ impl CdpSession {
                         connect(websocket_url.as_str()).map_err(|error| error.to_string())?;
                     if let MaybeTlsStream::Plain(stream) = socket.get_mut() {
                         stream
-                            .set_read_timeout(Some(Duration::from_secs(10)))
+                            .set_read_timeout(Some(Duration::from_secs(30)))
                             .map_err(|error| error.to_string())?;
+                        // 大图 base64 写入可达数 MB，10s 写超时会把会话打坏并堵死后续命令。
                         stream
-                            .set_write_timeout(Some(Duration::from_secs(10)))
+                            .set_write_timeout(Some(Duration::from_secs(120)))
                             .map_err(|error| error.to_string())?;
                     }
                     let mut next_id = 1;
@@ -262,6 +263,10 @@ impl CdpSession {
         if self.is_closed() {
             return Err("CDP 会话已关闭。".to_string());
         }
+        // 大图 base64 注入可达数 MB；固定 11s 会误杀仍在写 socket 的命令，
+        // 并让后续命令堵在 worker 队列里，表现为「正在处理」卡死、退出也无响应。
+        let approx_bytes = params.to_string().len() as u64;
+        let timeout_secs = (20 + approx_bytes / 80_000).clamp(20, 180);
         let (response, receiver) = mpsc::channel();
         self.sender
             .send(WorkerRequest::Send {
@@ -271,8 +276,8 @@ impl CdpSession {
             })
             .map_err(|_| "CDP 会话已关闭。".to_string())?;
         receiver
-            .recv_timeout(Duration::from_secs(11))
-            .map_err(|_| format!("CDP 命令超时：{method}"))?
+            .recv_timeout(Duration::from_secs(timeout_secs))
+            .map_err(|_| format!("CDP 命令超时：{method}（已等待 {timeout_secs}s）"))?
     }
 
     fn evaluate(&self, expression: &str) -> Result<Value, String> {
@@ -357,6 +362,18 @@ fn remove_from_session(managed: &mut ManagedSession) {
     managed.revision = None;
 }
 
+/// 超过该体积时不再把完整媒体脚本注册为 early script（会再复制一份经 CDP 发送）。
+const LARGE_PAYLOAD_EARLY_BYTES: usize = 400 * 1024;
+
+const EARLY_TRANSPARENCY_SCRIPT: &str = r#"(() => {
+  try {
+    const style = document.createElement("style");
+    style.id = "codex-background-early-transparency";
+    style.textContent = "html,body{background:transparent!important}";
+    (document.documentElement || document).appendChild(style);
+  } catch {}
+})()"#;
+
 fn apply_to_session(
     managed: &mut ManagedSession,
     payload: &str,
@@ -374,9 +391,15 @@ fn apply_to_session(
     managed
         .session
         .send("Page.setBypassCSP", json!({ "enabled": true }))?;
+    let early_source = if payload.len() > LARGE_PAYLOAD_EARLY_BYTES {
+        // 大媒体只发一次 evaluate；early 仅透明化，避免 5MB+ 脚本双倍堵死 WebSocket。
+        EARLY_TRANSPARENCY_SCRIPT.to_string()
+    } else {
+        early_payload_for(payload, revision)
+    };
     let early = managed.session.send(
         "Page.addScriptToEvaluateOnNewDocument",
-        json!({ "source": early_payload_for(payload, revision) }),
+        json!({ "source": early_source }),
     )?;
     managed.early_script_id = early
         .get("identifier")

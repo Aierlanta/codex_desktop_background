@@ -291,6 +291,19 @@ Tauri 单实例插件必须是 Builder 注册的第一个插件。第二次启�
 只改 `settings.json` 不够——Studio 进程内存里的旧值会写回磁盘，且已注入的
 payload 闭包仍带着旧 `taskIntensity`，MutationObserver 会持续把 CSS 变量打回 `0`。
 
+### 应用后卡在「正在处理」、退出也无响应
+
+常见组合：
+
+1. 激活了超大文件夹源（例如几千张图），每次应用都会扫描并挑一张图；
+2. 挑中的单张图有数 MB，base64 后经 CDP `addScriptToEvaluateOnNewDocument` **再**
+   `Runtime.evaluate` 各发一遍，WebSocket 写入长时间占住注入锁；
+3. 退出要先 `restore`，而 restore 等同一把 controller 锁 → 看起来退出失灵；
+4. 旧版批量拷贝残留的数千失效 `playlistIds` 让每次存盘/轮播更慢。
+
+处理要点：大媒体只 evaluate 一次（early 仅透明化）；CDP 超时按 payload 体积放大；
+文件夹列表缓存；启动时清理失效 playlist；退出恢复加超时强制退出。
+
 ### 任务页对话滚不动
 
 原因：透明化后 `#root` 下主壳 `div.relative.flex.flex-col` 会被长对话撑到内容高度

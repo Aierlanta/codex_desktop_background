@@ -55,27 +55,10 @@ fn show_error(app: &AppHandle, error: impl AsRef<str>) {
         .show(|_| {});
 }
 
-pub async fn quit_and_restore(app: AppHandle) {
+pub fn quit_without_touching_codex(app: AppHandle) {
     let state = app.state::<StudioState>();
     if state.quitting.swap(true, Ordering::SeqCst) {
         return;
-    }
-    let result = crate::restore_background(app.clone(), app.state()).await;
-    if let Err(error) = result {
-        let return_to_app = app
-            .dialog()
-            .message(format!("退出前未能完整恢复 Codex：\n\n{error}"))
-            .title("恢复未完成")
-            .buttons(MessageDialogButtons::OkCancelCustom(
-                "返回管理器".to_string(),
-                "仍然退出".to_string(),
-            ))
-            .blocking_show();
-        if return_to_app {
-            state.quitting.store(false, Ordering::SeqCst);
-            show_main_window(&app);
-            return;
-        }
     }
     app.exit(0);
 }
@@ -91,7 +74,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayUi, String> {
         .map_err(|error| error.to_string())?;
     let restore = MenuItem::with_id(app, "restore", "恢复官方外观", true, None::<&str>)
         .map_err(|error| error.to_string())?;
-    let quit = MenuItem::with_id(app, "quit", "退出并恢复 Codex", true, None::<&str>)
+    let quit = MenuItem::with_id(app, "quit", "退出 Studio（保留 Codex）", true, None::<&str>)
         .map_err(|error| error.to_string())?;
     let separator_one = PredefinedMenuItem::separator(app).map_err(|error| error.to_string())?;
     let separator_two = PredefinedMenuItem::separator(app).map_err(|error| error.to_string())?;
@@ -148,8 +131,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayUi, String> {
                 });
             }
             "quit" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(quit_and_restore(app));
+                quit_without_touching_codex(app.clone());
             }
             _ => {}
         })

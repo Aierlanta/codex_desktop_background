@@ -12,15 +12,28 @@ use std::{
 };
 
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::media::MediaLibrary;
+use crate::{
+    media::{MediaLibrary, ResolvedMedia},
+    models::SlideshowOrder,
+};
 
 #[derive(Clone)]
 struct ServedMedia {
     path: PathBuf,
     mime_type: String,
     byte_size: u64,
+    revision: String,
+}
+
+fn preview_revision(media: &ResolvedMedia) -> String {
+    // URL 需要随文件夹当前选中文件变化，否则 WebView 会继续复用旧缩略图。
+    let mut hasher = Sha256::new();
+    hasher.update(media.path.to_string_lossy().as_bytes());
+    hasher.update(media.byte_size.to_le_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 fn header(name: &str, value: impl AsRef<str>) -> Header {
@@ -174,7 +187,10 @@ pub struct MediaServer {
 }
 
 impl MediaServer {
-    pub fn start(library: &MediaLibrary) -> Result<Self, String> {
+    pub fn start(
+        library: &mut MediaLibrary,
+        order: SlideshowOrder,
+    ) -> Result<Self, String> {
         let server = Arc::new(Server::http("127.0.0.1:0").map_err(|error| error.to_string())?);
         let port = server
             .server_addr()
@@ -209,45 +225,35 @@ impl MediaServer {
             stopping,
             thread: Some(thread),
         };
-        result.sync(library);
+        result.sync(library, order);
         Ok(result)
     }
 
-    pub fn sync(&self, library: &MediaLibrary) {
+    pub fn sync(&self, library: &mut MediaLibrary, order: SlideshowOrder) {
         let items = library
             .items()
             .into_iter()
             .filter_map(|item| {
-                let path = library.path_for(&item).ok()?;
-                let (mime_type, byte_size) = if item.origin == crate::models::MediaOrigin::Folder {
-                    let metadata = std::fs::metadata(&path).ok()?;
-                    let extension = path
-                        .extension()
-                        .and_then(|value| value.to_str())
-                        .map(|value| format!(".{}", value.to_ascii_lowercase()))
-                        .unwrap_or_default();
-                    let mime = match extension.as_str() {
-                        ".png" => "image/png",
-                        ".jpg" | ".jpeg" => "image/jpeg",
-                        ".webp" => "image/webp",
-                        ".gif" => "image/gif",
-                        ".avif" => "image/avif",
-                        ".mp4" => "video/mp4",
-                        ".webm" => "video/webm",
-                        ".ogv" => "video/ogg",
-                        ".mov" => "video/quicktime",
-                        _ => "application/octet-stream",
-                    };
-                    (mime.to_string(), metadata.len())
+                let resolved = if item.origin == crate::models::MediaOrigin::Folder {
+                    library
+                        .resolve_playback(&item, order, false)
+                        .ok()?
                 } else {
-                    (item.mime_type.clone(), item.byte_size)
+                    let path = library.path_for(&item).ok()?;
+                    crate::media::ResolvedMedia {
+                        path,
+                        mime_type: item.mime_type.clone(),
+                        byte_size: item.byte_size,
+                        kind: item.kind.clone(),
+                    }
                 };
                 Some((
                     item.id,
                     ServedMedia {
-                        path,
-                        mime_type,
-                        byte_size,
+                        path: resolved.path,
+                        mime_type: resolved.mime_type,
+                        byte_size: resolved.byte_size,
+                        revision: preview_revision(&resolved),
                     },
                 ))
             })
@@ -258,7 +264,13 @@ impl MediaServer {
     }
 
     pub fn url_for(&self, id: &str) -> String {
-        format!("{}/{}/media/{}", self.origin, self.token, id)
+        let revision = self
+            .media
+            .read()
+            .ok()
+            .and_then(|items| items.get(id).map(|item| item.revision.as_str()))
+            .unwrap_or("missing");
+        format!("{}/{}/media/{}?v={revision}", self.origin, self.token, id)
     }
 }
 
