@@ -42,6 +42,8 @@ import { bridge } from "./bridge";
 type InspectorTab = "display" | "pages" | "slideshow" | "settings";
 type PreviewRoute = "home" | "task";
 
+const BUSY_INDICATOR_DELAY_MS = 300;
+
 const fitLabels: Record<FitMode, string> = {
   cover: "覆盖",
   contain: "适应",
@@ -266,12 +268,20 @@ export default function App() {
   const [remoteUrl, setRemoteUrl] = useState("");
   const [remoteDynamic, setRemoteDynamic] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [operationPending, setOperationPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const updateTimer = useRef<number | null>(null);
+  const busyTimer = useRef<number | null>(null);
+  const operationPendingRef = useRef(false);
 
   useEffect(() => {
     bridge.getSnapshot().then(setSnapshot).catch((error) => setNotice(error.message));
     return bridge.onSnapshot(setSnapshot);
+  }, []);
+
+  useEffect(() => () => {
+    if (updateTimer.current !== null) window.clearTimeout(updateTimer.current);
+    if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
   }, []);
 
   useEffect(() => {
@@ -281,10 +291,22 @@ export default function App() {
   }, [notice]);
 
   const run = useCallback(async (label: string, operation: () => Promise<unknown>) => {
-    setBusy(label);
+    if (operationPendingRef.current) return;
+    operationPendingRef.current = true;
+    setOperationPending(true);
+    busyTimer.current = window.setTimeout(() => {
+      setBusy(label);
+      busyTimer.current = null;
+    }, BUSY_INDICATOR_DELAY_MS);
     try { await operation(); }
     catch (error) { setNotice((error as Error).message); }
-    finally { setBusy(null); }
+    finally {
+      if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
+      busyTimer.current = null;
+      setBusy(null);
+      setOperationPending(false);
+      operationPendingRef.current = false;
+    }
   }, []);
 
   const patchSettings = useCallback((patch: SettingsPatch) => {
@@ -338,9 +360,9 @@ export default function App() {
         <div className="brand"><span className="brand-mark"><ImageIcon size={20} /></span><span><strong>Codex Background Studio</strong><small>背景管理器</small></span></div>
         <div className={`runtime-status status-${phaseTone}`}><i /><span>{snapshot.runtime.message}</span>{snapshot.runtime.codexVersion && <small>{snapshot.runtime.codexVersion}</small>}</div>
         <div className="top-actions">
-          <ActionButton icon={<Play size={16} />} tone="primary" disabled={!active || busy !== null} onClick={() => run("apply", () => bridge.apply())}>应用</ActionButton>
-          <ActionButton icon={<CirclePause size={16} />} disabled={phase !== "active" || busy !== null} onClick={() => run("pause", () => bridge.pause())}>暂停</ActionButton>
-          <ActionButton icon={<RefreshCw size={16} />} disabled={busy !== null} onClick={() => run("restore", () => bridge.restore())}>恢复</ActionButton>
+          <ActionButton icon={<Play size={16} />} tone="primary" disabled={!active || operationPending} onClick={() => run("apply", () => bridge.apply())}>应用</ActionButton>
+          <ActionButton icon={<CirclePause size={16} />} disabled={phase !== "active" || operationPending} onClick={() => run("pause", () => bridge.pause())}>暂停</ActionButton>
+          <ActionButton icon={<RefreshCw size={16} />} disabled={operationPending} onClick={() => run("restore", () => bridge.restore())}>恢复</ActionButton>
         </div>
       </header>
 
