@@ -242,6 +242,15 @@ html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"
   background-color: transparent !important;
   background-image: none !important;
 }
+/* 用户附件/图像预览的 tabpanel 内容壳使用 bg-token-bg-primary，和右侧
+   普通面板的 main-surface token 不同；保留图片本身，只清掉包围画布的实底。 */
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] [role="tabpanel"] > [class*="bg-token-bg-primary"] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] .codex-review-diff-card,
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] diffs-container,
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) aside[class*="z-[41]"] file-tree-container {
