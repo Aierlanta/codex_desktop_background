@@ -115,6 +115,17 @@ pub fn read_browser_identity(port: u16) -> Result<String, String> {
     Ok(id.to_string())
 }
 
+fn is_main_codex_target_url(value: &str) -> bool {
+    let Ok(url) = Url::parse(value) else {
+        return false;
+    };
+    if url.scheme() != "app" || url.host_str() != Some("-") || url.path() != "/index.html" {
+        return false;
+    }
+    !url.query_pairs()
+        .any(|(name, value)| name == "initialRoute" && value == "/avatar-overlay")
+}
+
 fn list_targets(port: u16, browser_id: &str) -> Result<Vec<CdpTarget>, String> {
     if read_browser_identity(port)? != browser_id {
         return Err("CDP 浏览器身份已变化，拒绝继续注入。".to_string());
@@ -124,7 +135,7 @@ fn list_targets(port: u16, browser_id: &str) -> Result<Vec<CdpTarget>, String> {
         .into_iter()
         .filter(|target| {
             target.target_type == "page"
-                && target.url.starts_with("app://")
+                && is_main_codex_target_url(&target.url)
                 && valid_id(&target.id)
                 && validate_websocket_url(
                     &target.web_socket_debugger_url,
@@ -604,6 +615,18 @@ mod tests {
         ] {
             assert!(validate_websocket_url(value, 9335, "page", Some("page-1")).is_err());
         }
+    }
+
+    #[test]
+    fn injects_main_codex_page_but_not_avatar_overlay() {
+        assert!(is_main_codex_target_url("app://-/index.html"));
+        assert!(is_main_codex_target_url(
+            "app://-/index.html?initialRoute=%2Fthread%2Fexample"
+        ));
+        assert!(!is_main_codex_target_url(
+            "app://-/index.html?initialRoute=%2Favatar-overlay"
+        ));
+        assert!(!is_main_codex_target_url("http://localhost:3000/"));
     }
 
     #[test]

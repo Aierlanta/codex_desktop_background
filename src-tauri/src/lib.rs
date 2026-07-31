@@ -11,7 +11,7 @@ mod settings;
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex, MutexGuard,
     },
     time::{Instant, SystemTime, UNIX_EPOCH},
@@ -21,7 +21,7 @@ use controller::CodexController;
 use media::MediaLibrary;
 use models::{
     AppSnapshot, ApplyRequest, DownloadRequest, ImportResult, MediaItem, SettingsPatch,
-    SkippedImport,
+    RuntimeStatus, SkippedImport,
 };
 use network::download_remote_media;
 use payload::{build_active_payload, ActivePayload};
@@ -45,9 +45,12 @@ struct StudioState {
     library: Mutex<MediaLibrary>,
     media_server: Mutex<MediaServer>,
     controller: Arc<Mutex<CodexController>>,
+    runtime_status: Mutex<RuntimeStatus>,
     tray: Mutex<Option<host::TrayUi>>,
     quitting: AtomicBool,
     slideshow_busy: AtomicBool,
+    live_apply_generation: AtomicU64,
+    live_apply_worker_running: AtomicBool,
 }
 
 fn lock<T>(value: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
@@ -81,15 +84,19 @@ impl StudioState {
         }
         let media_server = MediaServer::start(&mut library, settings.value().slideshow.order)?;
         let controller = CodexController::load(&data_directory);
+        let runtime_status = controller.status();
         Ok(Self {
             data_directory: data_directory.clone(),
             settings: Mutex::new(settings),
             library: Mutex::new(library),
             media_server: Mutex::new(media_server),
             controller: Arc::new(Mutex::new(controller)),
+            runtime_status: Mutex::new(runtime_status),
             tray: Mutex::new(None),
             quitting: AtomicBool::new(false),
             slideshow_busy: AtomicBool::new(false),
+            live_apply_generation: AtomicU64::new(0),
+            live_apply_worker_running: AtomicBool::new(false),
         })
     }
 
@@ -108,9 +115,24 @@ impl StudioState {
         Ok(AppSnapshot {
             settings,
             library: items,
-            runtime: lock(&self.controller)?.status(),
+            runtime: self.runtime_status()?,
             data_directory: self.data_directory.to_string_lossy().into_owned(),
         })
+    }
+
+    fn runtime_status(&self) -> Result<RuntimeStatus, String> {
+        if let Ok(controller) = self.controller.try_lock() {
+            let status = controller.status();
+            *lock(&self.runtime_status)? = status.clone();
+            return Ok(status);
+        }
+        Ok(lock(&self.runtime_status)?.clone())
+    }
+
+    fn refresh_runtime_status(&self) -> Result<RuntimeStatus, String> {
+        let status = lock(&self.controller)?.status();
+        *lock(&self.runtime_status)? = status.clone();
+        Ok(status)
     }
 
     fn sync_preview(&self) -> Result<(), String> {
@@ -162,37 +184,107 @@ impl StudioState {
             .active_media_id
             .as_deref()
             .ok_or_else(|| "请先从媒体库选择一张图片或一个视频。".to_string())?;
-        let mut library = lock(&self.library)?;
-        let item = library
-            .get_by_id(id)
-            .ok_or_else(|| "请先从媒体库选择一张图片或一个视频。".to_string())?;
-        let resolved = library.resolve_playback(&item, settings.slideshow.order.clone(), false)?;
-        // 文件夹源按实际挑中的文件构造临时条目，保证内嵌修订号与 MIME 正确。
-        let playback_item = MediaItem {
-            kind: resolved.kind.clone(),
-            mime_type: resolved.mime_type.clone(),
-            byte_size: resolved.byte_size,
-            ..item
+        let (playback_item, path) = {
+            let mut library = lock(&self.library)?;
+            let item = library
+                .get_by_id(id)
+                .ok_or_else(|| "请先从媒体库选择一张图片或一个视频。".to_string())?;
+            let resolved =
+                library.resolve_playback(&item, settings.slideshow.order.clone(), false)?;
+            // 文件夹源按实际挑中的文件构造临时条目，保证内嵌修订号与 MIME 正确。
+            let playback_item = MediaItem {
+                kind: resolved.kind.clone(),
+                mime_type: resolved.mime_type.clone(),
+                byte_size: resolved.byte_size,
+                ..item
+            };
+            (playback_item, resolved.path)
         };
-        build_active_payload(&playback_item, &resolved.path, &settings.display)
+        // 读取和编码单张媒体时不占用媒体库锁，预览和后续换图仍可立即响应。
+        build_active_payload(&playback_item, &path, &settings.display)
     }
 }
 
-async fn apply_live_if_active(state: &StudioState) -> Result<(), String> {
-    if lock(&state.controller)?.status().phase != "active" {
+async fn apply_live_generation(app: &AppHandle, generation: u64) -> Result<(), String> {
+    let state = app.state::<StudioState>();
+    if state.runtime_status()?.phase != "active"
+        || state.live_apply_generation.load(Ordering::Acquire) != generation
+    {
         return Ok(());
     }
-    let payload = match state.active_payload() {
+    let app_for_payload = app.clone();
+    let payload = match tauri::async_runtime::spawn_blocking(move || {
+        app_for_payload.state::<StudioState>().active_payload()
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    {
         Ok(payload) => payload,
         Err(error) if error.contains("请先从媒体库选择") => return Ok(()),
         Err(error) => return Err(error),
     };
+    if state.live_apply_generation.load(Ordering::Acquire) != generation
+        || state.runtime_status()?.phase != "active"
+    {
+        return Ok(());
+    }
     let controller = Arc::clone(&state.controller);
-    tauri::async_runtime::spawn_blocking(move || {
+    let result = tauri::async_runtime::spawn_blocking(move || {
         lock(&controller)?.apply(payload.script, payload.revision, false)
     })
     .await
-    .map_err(|error| error.to_string())??;
+    .map_err(|error| error.to_string())?;
+    let _ = state.refresh_runtime_status();
+    result?;
+    Ok(())
+}
+
+async fn run_live_apply_worker(app: AppHandle) {
+    loop {
+        let generation = app
+            .state::<StudioState>()
+            .live_apply_generation
+            .load(Ordering::Acquire);
+        if let Err(error) = apply_live_generation(&app, generation).await {
+            eprintln!("后台应用背景失败：{error}");
+        }
+
+        let state = app.state::<StudioState>();
+        if state.live_apply_generation.load(Ordering::Acquire) != generation {
+            continue;
+        }
+        state
+            .live_apply_worker_running
+            .store(false, Ordering::Release);
+        if state.live_apply_generation.load(Ordering::Acquire) == generation {
+            break;
+        }
+        if state
+            .live_apply_worker_running
+            .swap(true, Ordering::AcqRel)
+        {
+            break;
+        }
+    }
+    let _ = app.state::<StudioState>().emit_snapshot(&app);
+}
+
+fn queue_live_apply(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<StudioState>();
+    if state.runtime_status()?.phase != "active" {
+        return Ok(());
+    }
+    state.live_apply_generation.fetch_add(1, Ordering::AcqRel);
+    if state
+        .live_apply_worker_running
+        .swap(true, Ordering::AcqRel)
+    {
+        return Ok(());
+    }
+    let worker_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        run_live_apply_worker(worker_app).await;
+    });
     Ok(())
 }
 
@@ -213,7 +305,7 @@ async fn refresh_dynamic_item(state: &StudioState, id: &str) -> Result<(), Strin
     };
     let download = download_remote_media(&source_url, &temporary_directory).await?;
     lock(&state.library)?.refresh_with_download(id, download)?;
-    state.sync_preview()
+    Ok(())
 }
 
 async fn advance_slideshow(app: AppHandle) -> Result<(), String> {
@@ -305,9 +397,9 @@ async fn advance_slideshow(app: AppHandle) -> Result<(), String> {
             updated.active_media_id = Some(next_id);
             store.save(updated)?;
         }
-        apply_live_if_active(&state).await?;
         state.sync_preview()?;
         state.emit_snapshot(&app)?;
+        queue_live_apply(&app)?;
         Ok(())
     }
     .await;
@@ -325,8 +417,9 @@ fn start_slideshow_scheduler(app: AppHandle) {
                 let settings = lock(&state.settings)
                     .map(|store| store.value())
                     .unwrap_or_default();
-                let active = lock(&state.controller)
-                    .map(|controller| controller.status().phase == "active")
+                let active = state
+                    .runtime_status()
+                    .map(|status| status.phase == "active")
                     .unwrap_or(false);
                 (
                     settings.slideshow.enabled,
@@ -377,8 +470,8 @@ async fn choose_media_files(
     }
     let result = lock(&state.library)?.import_files(&paths);
     state.integrate_import(&result)?;
-    apply_live_if_active(&state).await?;
     state.emit_snapshot(&app)?;
+    queue_live_apply(&app)?;
     Ok(result)
 }
 
@@ -398,8 +491,8 @@ async fn choose_media_folder(
     };
     let result = lock(&state.library)?.import_folder(&folder);
     state.integrate_import(&result)?;
-    apply_live_if_active(&state).await?;
     state.emit_snapshot(&app)?;
+    queue_live_apply(&app)?;
     Ok(result)
 }
 
@@ -427,8 +520,8 @@ async fn add_remote_media(
     };
     let result = lock(&state.library)?.import_download(&request.url, request.dynamic, download);
     state.integrate_import(&result)?;
-    apply_live_if_active(&state).await?;
     state.emit_snapshot(&app)?;
+    queue_live_apply(&app)?;
     Ok(result)
 }
 
@@ -452,12 +545,13 @@ async fn refresh_media(
                 .get_by_id(&id)
                 .ok_or_else(|| "媒体项目不存在。".to_string())?;
             lock(&state.library)?.advance_folder_cursor(&item, order)?;
-            state.sync_preview()?;
         }
         _ => return Err("该媒体不支持刷新。".to_string()),
     }
-    apply_live_if_active(&state).await?;
-    state.emit_snapshot(&app)
+    state.sync_preview()?;
+    let snapshot = state.emit_snapshot(&app)?;
+    queue_live_apply(&app)?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -483,8 +577,9 @@ async fn remove_media(
         store.save(settings)?;
     }
     state.sync_preview()?;
-    apply_live_if_active(&state).await?;
-    state.emit_snapshot(&app)
+    let snapshot = state.emit_snapshot(&app)?;
+    queue_live_apply(&app)?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -505,9 +600,10 @@ async fn set_active_media(
         }
         store.save(settings)?;
     }
-    apply_live_if_active(&state).await?;
     state.sync_preview()?;
-    state.emit_snapshot(&app)
+    let snapshot = state.emit_snapshot(&app)?;
+    queue_live_apply(&app)?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -519,8 +615,9 @@ async fn update_settings(
     let behavior = lock(&state.settings)?.patch(patch)?.behavior;
     host::sync_autostart(behavior.auto_start_with_windows, behavior.start_minimized)?;
     state.sync_preview()?;
-    apply_live_if_active(&state).await?;
-    state.emit_snapshot(&app)
+    let snapshot = state.emit_snapshot(&app)?;
+    queue_live_apply(&app)?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -552,6 +649,7 @@ async fn apply_background(
     )
     .await
     .map_err(|error| error.to_string())?;
+    let _ = state.refresh_runtime_status();
     if let Err(error) = first {
         if !restart_requested && error.contains("需要重启一次") {
             let confirmed = app
@@ -571,6 +669,7 @@ async fn apply_background(
             let retry = run_apply(true, payload.script, payload.revision)
                 .await
                 .map_err(|error| error.to_string())?;
+            let _ = state.refresh_runtime_status();
             if let Err(error) = retry {
                 let _ = state.emit_snapshot(&app);
                 return Err(error);
@@ -588,10 +687,13 @@ async fn pause_background(
     app: AppHandle,
     state: State<'_, StudioState>,
 ) -> Result<AppSnapshot, String> {
+    state.live_apply_generation.fetch_add(1, Ordering::AcqRel);
     let controller = Arc::clone(&state.controller);
-    tauri::async_runtime::spawn_blocking(move || lock(&controller)?.pause())
+    let result = tauri::async_runtime::spawn_blocking(move || lock(&controller)?.pause())
         .await
-        .map_err(|error| error.to_string())??;
+        .map_err(|error| error.to_string())?;
+    let _ = state.refresh_runtime_status();
+    result?;
     state.emit_snapshot(&app)
 }
 
@@ -600,10 +702,13 @@ async fn restore_background(
     app: AppHandle,
     state: State<'_, StudioState>,
 ) -> Result<AppSnapshot, String> {
+    state.live_apply_generation.fetch_add(1, Ordering::AcqRel);
     let controller = Arc::clone(&state.controller);
-    tauri::async_runtime::spawn_blocking(move || lock(&controller)?.restore())
+    let result = tauri::async_runtime::spawn_blocking(move || lock(&controller)?.restore())
         .await
-        .map_err(|error| error.to_string())??;
+        .map_err(|error| error.to_string())?;
+    let _ = state.refresh_runtime_status();
+    result?;
     state.emit_snapshot(&app)
 }
 
@@ -640,6 +745,7 @@ pub fn run() {
                             .reconnect_saved(payload.script, payload.revision)
                             .map(|_| ())
                     });
+                let _ = state.refresh_runtime_status();
             }
             let settings = lock(&state.settings)
                 .map_err(std::io::Error::other)?

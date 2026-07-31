@@ -302,7 +302,9 @@ payload 闭包仍带着旧 `taskIntensity`，MutationObserver 会持续把 CSS �
 4. 旧版批量拷贝残留的数千失效 `playlistIds` 让每次存盘/轮播更慢。
 
 处理要点：大媒体只 evaluate 一次（early 仅透明化）；CDP 超时按 payload 体积放大；
-文件夹列表缓存；启动时清理失效 playlist；退出恢复加超时强制退出。
+文件夹列表缓存；只向主 `app://-/index.html` 注入，排除 `avatar-overlay` 等辅助页；
+实时换图和设置更新进入单工的「最新状态优先」后台队列，UI 不等待媒体注入；启动时清理
+失效 playlist；退出恢复加超时强制退出。
 
 ### 任务页对话滚不动
 

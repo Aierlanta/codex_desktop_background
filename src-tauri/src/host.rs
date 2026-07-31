@@ -153,7 +153,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayUi, String> {
 
 pub fn update_tray(app: &AppHandle, ui: &TrayUi) {
     let state = app.state::<StudioState>();
-    let Ok(status) = lock(&state.controller).map(|controller| controller.status()) else {
+    let Ok(status) = state.runtime_status() else {
         return;
     };
     let _ = ui.status.set_text(format!("状态：{}", status.message));
