@@ -247,13 +247,14 @@ impl MediaServer {
                         kind: item.kind.clone(),
                     }
                 };
+                let revision = preview_revision(&resolved);
                 Some((
                     item.id,
                     ServedMedia {
                         path: resolved.path,
                         mime_type: resolved.mime_type,
                         byte_size: resolved.byte_size,
-                        revision: preview_revision(&resolved),
+                        revision,
                     },
                 ))
             })
@@ -268,8 +269,8 @@ impl MediaServer {
             .media
             .read()
             .ok()
-            .and_then(|items| items.get(id).map(|item| item.revision.as_str()))
-            .unwrap_or("missing");
+            .and_then(|items| items.get(id).map(|item| item.revision.clone()))
+            .unwrap_or_else(|| "missing".to_string());
         format!("{}/{}/media/{}?v={revision}", self.origin, self.token, id)
     }
 }
