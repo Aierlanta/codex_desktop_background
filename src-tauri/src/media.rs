@@ -820,7 +820,9 @@ mod tests {
         let resolved = library
             .resolve_playback(&imported.added[0], SlideshowOrder::Sequential, false)
             .unwrap();
-        assert!(resolved.path.starts_with(&source_dir));
+        // Windows canonicalize 会加 \\?\ 前缀，断言要用同一规范化路径。
+        let canonical_source = source_dir.canonicalize().unwrap();
+        assert!(resolved.path.starts_with(&canonical_source));
         assert!(library.remove(&imported.added[0].id).unwrap());
         assert!(source_dir.join("bg-0.png").is_file());
         let _ = fs::remove_dir_all(root);
