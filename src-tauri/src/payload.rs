@@ -55,9 +55,14 @@ pub fn build_active_payload(
     if bytes.len() as u64 > MAX_INLINE_MEDIA_BYTES {
         return Err("背景媒体超过 64 MB 内嵌上限，请选择更小的文件。".to_string());
     }
-    let media_url = format!("data:{};base64,{}", media.mime_type, STANDARD.encode(bytes));
+    let file_digest = {
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        format!("{:x}", hasher.finalize())
+    };
+    let media_url = format!("data:{};base64,{}", media.mime_type, STANDARD.encode(&bytes));
     let revision_input = serde_json::to_vec(&RevisionInput {
-        sha256: &media.sha256,
+        sha256: &file_digest,
         display,
         kind: &media.kind,
     })
@@ -112,6 +117,7 @@ mod tests {
             byte_size: 13,
             sha256: "abc".to_string(),
             source_url: None,
+            file_count: None,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             preview_url: None,
         };

@@ -1,6 +1,7 @@
 export type MediaKind = "image" | "video";
 // api: 随机图片接口，每次请求返回不同内容，轮播/刷新时重新拉取
-export type MediaOrigin = "local" | "remote" | "api";
+// folder: 只记录本地目录路径，轮播/应用时再按需挑选其中一张，不复制入库
+export type MediaOrigin = "local" | "remote" | "api" | "folder";
 export type FitMode = "cover" | "contain" | "fill" | "tile";
 export type SlideshowOrder = "sequential" | "random";
 
@@ -14,6 +15,8 @@ export interface MediaItem {
   byteSize: number;
   sha256: string;
   sourceUrl?: string;
+  /** 文件夹源内当前扫描到的媒体数量（不复制文件） */
+  fileCount?: number;
   createdAt: string;
   previewUrl?: string;
 }

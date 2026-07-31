@@ -20,7 +20,8 @@ use std::{
 use controller::CodexController;
 use media::MediaLibrary;
 use models::{
-    AppSnapshot, ApplyRequest, DownloadRequest, ImportResult, SettingsPatch, SkippedImport,
+    AppSnapshot, ApplyRequest, DownloadRequest, ImportResult, MediaItem, SettingsPatch,
+    SkippedImport,
 };
 use network::download_remote_media;
 use payload::{build_active_payload, ActivePayload};
@@ -144,12 +145,19 @@ impl StudioState {
             .active_media_id
             .as_deref()
             .ok_or_else(|| "请先从媒体库选择一张图片或一个视频。".to_string())?;
-        let library = lock(&self.library)?;
+        let mut library = lock(&self.library)?;
         let item = library
             .get_by_id(id)
             .ok_or_else(|| "请先从媒体库选择一张图片或一个视频。".to_string())?;
-        let path = library.path_for(&item)?;
-        build_active_payload(&item, &path, &settings.display)
+        let resolved = library.resolve_playback(&item, settings.slideshow.order.clone(), false)?;
+        // 文件夹源按实际挑中的文件构造临时条目，保证内嵌修订号与 MIME 正确。
+        let playback_item = MediaItem {
+            kind: resolved.kind.clone(),
+            mime_type: resolved.mime_type.clone(),
+            byte_size: resolved.byte_size,
+            ..item
+        };
+        build_active_payload(&playback_item, &resolved.path, &settings.display)
     }
 }
 
@@ -217,12 +225,19 @@ async fn advance_slideshow(app: AppHandle) -> Result<(), String> {
         if candidates.is_empty() {
             return Ok(());
         }
+        let refreshable = |id: &str| -> Result<bool, String> {
+            Ok(lock(&state.library)?
+                .get_by_id(id)
+                .map(|item| {
+                    matches!(
+                        item.origin,
+                        models::MediaOrigin::Api | models::MediaOrigin::Folder
+                    )
+                })
+                .unwrap_or(false))
+        };
         if candidates.len() == 1 {
-            let is_dynamic = lock(&state.library)?
-                .get_by_id(&candidates[0])
-                .map(|item| item.origin == models::MediaOrigin::Api)
-                .unwrap_or(false);
-            if !is_dynamic {
+            if !refreshable(&candidates[0])? {
                 return Ok(());
             }
         }
@@ -250,13 +265,22 @@ async fn advance_slideshow(app: AppHandle) -> Result<(), String> {
                 (*choices[(seed % choices.len() as u128) as usize]).clone()
             }
         };
-        let is_dynamic = lock(&state.library)?
-            .get_by_id(&next_id)
-            .map(|item| item.origin == models::MediaOrigin::Api)
-            .unwrap_or(false);
-        if is_dynamic {
-            // 网络抖动时沿用这个 API 条目的现有缓存，轮播仍继续。
-            let _ = refresh_dynamic_item(&state, &next_id).await;
+        let next_item = lock(&state.library)?.get_by_id(&next_id);
+        match next_item.map(|item| item.origin) {
+            Some(models::MediaOrigin::Api) => {
+                // 网络抖动时沿用这个 API 条目的现有缓存，轮播仍继续。
+                let _ = refresh_dynamic_item(&state, &next_id).await;
+            }
+            Some(models::MediaOrigin::Folder) => {
+                let same_item = settings.active_media_id.as_deref() == Some(next_id.as_str());
+                if same_item {
+                    let order = settings.slideshow.order.clone();
+                    if let Some(item) = lock(&state.library)?.get_by_id(&next_id) {
+                        let _ = lock(&state.library)?.advance_folder_cursor(&item, order);
+                    }
+                }
+            }
+            _ => {}
         }
         {
             let mut store = lock(&state.settings)?;
@@ -348,14 +372,13 @@ async fn choose_media_folder(
     let Some(folder) = app
         .dialog()
         .file()
-        .set_title("导入背景文件夹")
+        .set_title("添加背景文件夹")
         .blocking_pick_folder()
         .and_then(|path| path.into_path().ok())
     else {
         return Ok(ImportResult::default());
     };
-    let paths = lock(&state.library)?.discover_folder(&folder)?;
-    let result = lock(&state.library)?.import_files(&paths);
+    let result = lock(&state.library)?.import_folder(&folder);
     state.integrate_import(&result)?;
     apply_live_if_active(&state).await?;
     state.emit_snapshot(&app)?;
@@ -397,7 +420,24 @@ async fn refresh_media(
     state: State<'_, StudioState>,
     id: String,
 ) -> Result<AppSnapshot, String> {
-    refresh_dynamic_item(&state, &id).await?;
+    let origin = lock(&state.library)?
+        .get_by_id(&id)
+        .map(|item| item.origin)
+        .ok_or_else(|| "媒体项目不存在。".to_string())?;
+    match origin {
+        models::MediaOrigin::Api => {
+            refresh_dynamic_item(&state, &id).await?;
+        }
+        models::MediaOrigin::Folder => {
+            let order = lock(&state.settings)?.value().slideshow.order;
+            let item = lock(&state.library)?
+                .get_by_id(&id)
+                .ok_or_else(|| "媒体项目不存在。".to_string())?;
+            lock(&state.library)?.advance_folder_cursor(&item, order)?;
+            state.sync_preview()?;
+        }
+        _ => return Err("该媒体不支持刷新。".to_string()),
+    }
     apply_live_if_active(&state).await?;
     state.emit_snapshot(&app)
 }

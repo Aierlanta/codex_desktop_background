@@ -1,8 +1,9 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fs::{self, File},
     io::Read,
     path::{Component, Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use chrono::Utc;
@@ -10,7 +11,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
-    models::{ImportResult, MediaItem, MediaKind, MediaOrigin, SkippedImport},
+    models::{ImportResult, MediaItem, MediaKind, MediaOrigin, SkippedImport, SlideshowOrder},
     network::RemoteDownload,
     settings::write_json_transaction,
 };
@@ -136,6 +137,22 @@ fn sha256(path: &Path) -> Result<String, String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
+fn sha256_text(value: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(value.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+const FOLDER_SENTINEL: &str = "__folder__";
+
+#[derive(Clone, Debug)]
+pub struct ResolvedMedia {
+    pub path: PathBuf,
+    pub mime_type: String,
+    pub byte_size: u64,
+    pub kind: MediaKind,
+}
+
 fn validate_media(path: &Path, media_type: MediaType, extension: &str) -> Result<(), String> {
     let mut header = [0u8; 64];
     let mut file = File::open(path).map_err(|error| error.to_string())?;
@@ -195,6 +212,8 @@ pub struct MediaLibrary {
     pub temporary_directory: PathBuf,
     pub catalog_path: PathBuf,
     items: Vec<MediaItem>,
+    /// 文件夹源的顺序轮播游标；仅内存态，不写入 library.json。
+    folder_cursors: HashMap<String, usize>,
 }
 
 impl MediaLibrary {
@@ -209,20 +228,14 @@ impl MediaLibrary {
             temporary_directory,
             catalog_path,
             items: Vec::new(),
+            folder_cursors: HashMap::new(),
         };
         match fs::read_to_string(&library.catalog_path) {
             Ok(content) => match serde_json::from_str::<Vec<MediaItem>>(&content) {
                 Ok(items) => {
                     library.items = items
                         .into_iter()
-                        .filter(|item| {
-                            library
-                                .path_for(item)
-                                .and_then(|path| {
-                                    fs::metadata(path).map_err(|error| error.to_string())
-                                })
-                                .is_ok_and(|metadata| metadata.is_file())
-                        })
+                        .filter(|item| library.item_still_available(item))
                         .collect();
                 }
                 Err(_) => {
@@ -244,6 +257,19 @@ impl MediaLibrary {
         Ok(library)
     }
 
+    fn item_still_available(&self, item: &MediaItem) -> bool {
+        if item.origin == MediaOrigin::Folder {
+            return item
+                .source_url
+                .as_deref()
+                .map(Path::new)
+                .is_some_and(|path| path.is_dir());
+        }
+        self.path_for(item)
+            .and_then(|path| fs::metadata(path).map_err(|error| error.to_string()))
+            .is_ok_and(|metadata| metadata.is_file())
+    }
+
     pub fn items(&self) -> Vec<MediaItem> {
         self.items.clone()
     }
@@ -253,12 +279,144 @@ impl MediaLibrary {
     }
 
     pub fn path_for(&self, item: &MediaItem) -> Result<PathBuf, String> {
+        if item.origin == MediaOrigin::Folder {
+            let resolved = self.resolve_folder_media(item, SlideshowOrder::Sequential)?;
+            return Ok(resolved.path);
+        }
         let path = Path::new(&item.file_name);
         let mut components = path.components();
         if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
             return Err("媒体目录校验失败。".to_string());
         }
         Ok(self.media_directory.join(path))
+    }
+
+    pub fn resolve_playback(
+        &mut self,
+        item: &MediaItem,
+        order: SlideshowOrder,
+        advance: bool,
+    ) -> Result<ResolvedMedia, String> {
+        if item.origin == MediaOrigin::Folder {
+            if advance {
+                self.advance_folder_cursor(item, order)?;
+            }
+            return self.resolve_folder_media(item, order);
+        }
+        let path = self.path_for(item)?;
+        Ok(ResolvedMedia {
+            path,
+            mime_type: item.mime_type.clone(),
+            byte_size: item.byte_size,
+            kind: item.kind.clone(),
+        })
+    }
+
+    fn folder_path_for(item: &MediaItem) -> Result<PathBuf, String> {
+        let raw = item
+            .source_url
+            .as_deref()
+            .ok_or_else(|| "文件夹源缺少路径。".to_string())?;
+        let path = PathBuf::from(raw);
+        if !path.is_dir() {
+            return Err("文件夹源已不存在或不可访问。".to_string());
+        }
+        Ok(path)
+    }
+
+    pub fn list_folder_media(folder: &Path) -> Result<Vec<PathBuf>, String> {
+        let root = folder
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        let mut pending = VecDeque::from([root]);
+        let mut files = Vec::new();
+        while let Some(directory) = pending.pop_front() {
+            for entry in fs::read_dir(&directory).map_err(|error| error.to_string())? {
+                let entry = entry.map_err(|error| error.to_string())?;
+                let file_type = entry.file_type().map_err(|error| error.to_string())?;
+                if file_type.is_symlink() {
+                    continue;
+                }
+                let path = entry.path();
+                if file_type.is_dir() {
+                    pending.push_back(path);
+                } else if file_type.is_file() && media_type(&extension(&path)).is_some() {
+                    files.push(path);
+                }
+                if files.len() + pending.len() > 10_000 {
+                    return Err("文件夹内容过多，请选择更具体的目录。".to_string());
+                }
+            }
+        }
+        files.sort();
+        Ok(files)
+    }
+
+    fn resolve_folder_media(
+        &self,
+        item: &MediaItem,
+        order: SlideshowOrder,
+    ) -> Result<ResolvedMedia, String> {
+        let folder = Self::folder_path_for(item)?;
+        let files = Self::list_folder_media(&folder)?;
+        if files.is_empty() {
+            return Err("文件夹中没有支持的图片或视频。".to_string());
+        }
+        let index = match order {
+            SlideshowOrder::Random => {
+                let seed = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|duration| duration.as_nanos())
+                    .unwrap_or_default();
+                (seed % files.len() as u128) as usize
+            }
+            SlideshowOrder::Sequential => {
+                self.folder_cursors.get(&item.id).copied().unwrap_or(0) % files.len()
+            }
+        };
+        let path = files[index % files.len()].clone();
+        let chosen_extension = extension(&path);
+        let media_type =
+            media_type(&chosen_extension).ok_or_else(|| "不支持此图片或视频格式。".to_string())?;
+        let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
+        if metadata.len() > media_type.maximum {
+            return Err(format!(
+                "媒体文件超过 {} MB 上限。",
+                media_type.maximum / 1024 / 1024
+            ));
+        }
+        Ok(ResolvedMedia {
+            path,
+            mime_type: media_type.mime_type.to_string(),
+            byte_size: metadata.len(),
+            kind: media_type.kind.owned(),
+        })
+    }
+
+    pub fn advance_folder_cursor(
+        &mut self,
+        item: &MediaItem,
+        order: SlideshowOrder,
+    ) -> Result<(), String> {
+        if item.origin != MediaOrigin::Folder {
+            return Ok(());
+        }
+        let folder = Self::folder_path_for(item)?;
+        let files = Self::list_folder_media(&folder)?;
+        if files.is_empty() {
+            return Err("文件夹中没有支持的图片或视频。".to_string());
+        }
+        if matches!(order, SlideshowOrder::Sequential) {
+            let next = self
+                .folder_cursors
+                .get(&item.id)
+                .copied()
+                .unwrap_or(0)
+                .saturating_add(1)
+                % files.len();
+            self.folder_cursors.insert(item.id.clone(), next);
+        }
+        Ok(())
     }
 
     fn save_catalog(&self) -> Result<(), String> {
@@ -336,6 +494,7 @@ impl MediaLibrary {
                 byte_size: metadata.len(),
                 sha256: digest,
                 source_url: options.source_url,
+                file_count: None,
                 created_at: Utc::now().to_rfc3339(),
                 preview_url: None,
             };
@@ -381,29 +540,95 @@ impl MediaLibrary {
         result
     }
 
-    pub fn discover_folder(&self, folder: &Path) -> Result<Vec<PathBuf>, String> {
-        let root = folder.canonicalize().map_err(|error| error.to_string())?;
-        let mut pending = VecDeque::from([root]);
-        let mut files = Vec::new();
-        while let Some(directory) = pending.pop_front() {
-            for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
-                let entry = entry.map_err(|error| error.to_string())?;
-                let file_type = entry.file_type().map_err(|error| error.to_string())?;
-                if file_type.is_symlink() {
-                    continue;
-                }
-                let path = entry.path();
-                if file_type.is_dir() {
-                    pending.push_back(path);
-                } else if file_type.is_file() && media_type(&extension(&path)).is_some() {
-                    files.push(path);
-                }
-                if files.len() + pending.len() > 10_000 {
-                    return Err("文件夹内容过多，请选择更具体的目录。".to_string());
-                }
+    pub fn import_folder(&mut self, folder: &Path) -> ImportResult {
+        let root = match folder.canonicalize() {
+            Ok(path) => path,
+            Err(error) => {
+                return ImportResult {
+                    added: Vec::new(),
+                    skipped: vec![SkippedImport {
+                        path: folder.to_string_lossy().into_owned(),
+                        reason: error.to_string(),
+                    }],
+                };
             }
+        };
+        if !root.is_dir() {
+            return ImportResult {
+                added: Vec::new(),
+                skipped: vec![SkippedImport {
+                    path: root.to_string_lossy().into_owned(),
+                    reason: "请选择一个文件夹。".to_string(),
+                }],
+            };
         }
-        Ok(files)
+        let root_key = root.to_string_lossy().into_owned();
+        if let Some(existing) = self.items.iter().find(|item| {
+            item.origin == MediaOrigin::Folder && item.source_url.as_deref() == Some(root_key.as_str())
+        }) {
+            return ImportResult {
+                added: Vec::new(),
+                skipped: vec![SkippedImport {
+                    path: root_key,
+                    reason: format!("文件夹源已存在：{}", existing.name),
+                }],
+            };
+        }
+        let files = match Self::list_folder_media(&root) {
+            Ok(files) => files,
+            Err(error) => {
+                return ImportResult {
+                    added: Vec::new(),
+                    skipped: vec![SkippedImport {
+                        path: root_key,
+                        reason: error,
+                    }],
+                };
+            }
+        };
+        if files.is_empty() {
+            return ImportResult {
+                added: Vec::new(),
+                skipped: vec![SkippedImport {
+                    path: root_key,
+                    reason: "文件夹中没有支持的图片或视频。".to_string(),
+                }],
+            };
+        }
+        let folder_name = root
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("未命名文件夹");
+        let count = files.len() as u64;
+        let item = MediaItem {
+            id: Uuid::new_v4().to_string(),
+            name: safe_display_name(&format!("{folder_name}（{count}）")),
+            kind: MediaKind::Image,
+            origin: MediaOrigin::Folder,
+            file_name: FOLDER_SENTINEL.to_string(),
+            mime_type: "application/x-directory".to_string(),
+            byte_size: 0,
+            sha256: sha256_text(&root_key),
+            source_url: Some(root_key.clone()),
+            file_count: Some(count),
+            created_at: Utc::now().to_rfc3339(),
+            preview_url: None,
+        };
+        self.items.insert(0, item.clone());
+        if let Err(error) = self.save_catalog() {
+            self.items.retain(|candidate| candidate.id != item.id);
+            return ImportResult {
+                added: Vec::new(),
+                skipped: vec![SkippedImport {
+                    path: root_key,
+                    reason: error,
+                }],
+            };
+        }
+        ImportResult {
+            added: vec![item],
+            skipped: Vec::new(),
+        }
     }
 
     pub fn import_download(
@@ -520,7 +745,12 @@ impl MediaLibrary {
             return Ok(false);
         };
         self.items.retain(|candidate| candidate.id != id);
+        self.folder_cursors.remove(id);
         self.save_catalog()?;
+        if item.origin == MediaOrigin::Folder {
+            // 文件夹源只删除目录引用，绝不触碰用户原目录里的文件。
+            return Ok(true);
+        }
         let path = self.path_for(&item)?;
         match fs::remove_file(path) {
             Ok(()) => Ok(true),
@@ -563,6 +793,36 @@ mod tests {
         assert_eq!(duplicate.skipped[0].reason, "媒体已存在");
         assert!(library.remove(&first.added[0].id).unwrap());
         assert!(library.items().is_empty());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn imports_folder_as_path_reference_without_copying() {
+        let root = std::env::temp_dir().join(format!("codex-folder-{}", Uuid::new_v4()));
+        let source_dir = root.join("wallpapers");
+        fs::create_dir_all(&source_dir).unwrap();
+        for index in 0..3 {
+            let path = source_dir.join(format!("bg-{index}.png"));
+            File::create(&path)
+                .unwrap()
+                .write_all(&png_header())
+                .unwrap();
+        }
+        let mut library = MediaLibrary::load(&root.join("data")).unwrap();
+        let imported = library.import_folder(&source_dir);
+        assert_eq!(imported.added.len(), 1);
+        assert_eq!(imported.added[0].origin, MediaOrigin::Folder);
+        assert_eq!(imported.added[0].file_count, Some(3));
+        assert!(imported.added[0].source_url.as_ref().unwrap().contains("wallpapers"));
+        // 受管 media 目录不应出现用户原图副本。
+        let managed = fs::read_dir(&library.media_directory).unwrap().count();
+        assert_eq!(managed, 0);
+        let resolved = library
+            .resolve_playback(&imported.added[0], SlideshowOrder::Sequential, false)
+            .unwrap();
+        assert!(resolved.path.starts_with(&source_dir));
+        assert!(library.remove(&imported.added[0].id).unwrap());
+        assert!(source_dir.join("bg-0.png").is_file());
         let _ = fs::remove_dir_all(root);
     }
 }

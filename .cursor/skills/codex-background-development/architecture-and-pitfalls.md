@@ -216,6 +216,20 @@ Tauri 单实例插件必须是 Builder 注册的第一个插件。第二次启�
 - 内部壳透明；
 - 关闭 backdrop-filter。
 
+### 大文件夹导入卡在“正在处理”
+
+原因：旧实现会递归扫描文件夹后，把每一张图/视频都复制进受管
+`media/` 目录并计算 sha256。几千张时会复制数 GB 并长时间无响应。
+
+上游 `vscode-background-cover` 的做法是只保存 `randomImageFolder` 路径，
+轮播时再 `readdir` 挑选一张应用，不入库复制。
+
+处理：
+
+- 「添加文件夹」只写入一条 `origin: "folder"` 目录引用；
+- 应用 / 轮播 / 刷新时再按需从目录挑选文件；
+- 删除文件夹源只移除引用，不触碰用户原目录。
+
 ### Codex 更新后主内容整页实底、侧栏仍透出背景
 
 原因：26.727+ 把 `main.main-surface`、`.app-shell-main-content-viewport`、

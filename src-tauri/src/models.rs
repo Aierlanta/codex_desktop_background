@@ -32,6 +32,7 @@ pub enum MediaOrigin {
     Local,
     Remote,
     Api,
+    Folder,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -47,6 +48,9 @@ pub struct MediaItem {
     pub sha256: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_url: Option<String>,
+    /// 文件夹源内扫描到的媒体数量；普通文件条目不使用。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_count: Option<u64>,
     pub created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_url: Option<String>,

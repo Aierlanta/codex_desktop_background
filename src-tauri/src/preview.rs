@@ -219,12 +219,35 @@ impl MediaServer {
             .into_iter()
             .filter_map(|item| {
                 let path = library.path_for(&item).ok()?;
+                let (mime_type, byte_size) = if item.origin == crate::models::MediaOrigin::Folder {
+                    let metadata = std::fs::metadata(&path).ok()?;
+                    let extension = path
+                        .extension()
+                        .and_then(|value| value.to_str())
+                        .map(|value| format!(".{}", value.to_ascii_lowercase()))
+                        .unwrap_or_default();
+                    let mime = match extension.as_str() {
+                        ".png" => "image/png",
+                        ".jpg" | ".jpeg" => "image/jpeg",
+                        ".webp" => "image/webp",
+                        ".gif" => "image/gif",
+                        ".avif" => "image/avif",
+                        ".mp4" => "video/mp4",
+                        ".webm" => "video/webm",
+                        ".ogv" => "video/ogg",
+                        ".mov" => "video/quicktime",
+                        _ => "application/octet-stream",
+                    };
+                    (mime.to_string(), metadata.len())
+                } else {
+                    (item.mime_type.clone(), item.byte_size)
+                };
                 Some((
                     item.id,
                     ServedMedia {
                         path,
-                        mime_type: item.mime_type,
-                        byte_size: item.byte_size,
+                        mime_type,
+                        byte_size,
                     },
                 ))
             })

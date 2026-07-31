@@ -153,10 +153,14 @@ function MediaThumb({ item, active, inPlaylist, onActivate, onTogglePlaylist, on
         ) : (
           <img src={item.previewUrl} alt="" loading="lazy" />
         )}
-        <span className="thumb-kind">{item.origin === "api" ? <Shuffle size={13} /> : item.kind === "video" ? <Film size={13} /> : <ImageIcon size={13} />}</span>
+        <span className="thumb-kind">{item.origin === "api" ? <Shuffle size={13} /> : item.origin === "folder" ? <FolderOpen size={13} /> : item.kind === "video" ? <Film size={13} /> : <ImageIcon size={13} />}</span>
         <span className="thumb-actions">
-          {item.origin === "api" && (
-            <IconButton icon={<RefreshCw size={14} />} label="换一张（重新请求 API）" onClick={onRefresh} />
+          {(item.origin === "api" || item.origin === "folder") && (
+            <IconButton
+              icon={<RefreshCw size={14} />}
+              label={item.origin === "folder" ? "换一张（从文件夹重选）" : "换一张（重新请求 API）"}
+              onClick={onRefresh}
+            />
           )}
           <IconButton
             icon={inPlaylist ? <Check size={14} /> : <Plus size={14} />}
@@ -168,7 +172,7 @@ function MediaThumb({ item, active, inPlaylist, onActivate, onTogglePlaylist, on
         </span>
       </span>
       <span className="thumb-name">{item.name}</span>
-      <span className="thumb-meta">{item.origin === "api" ? "随机 API" : item.kind === "video" ? "视频" : "图片"} · {formatBytes(item.byteSize)}</span>
+      <span className="thumb-meta">{item.origin === "api" ? "随机 API" : item.origin === "folder" ? `文件夹 · ${item.fileCount ?? 0} 个` : item.origin === "remote" ? "网络媒体" : item.kind === "video" ? "视频" : "图片"}{item.origin === "folder" ? "" : ` · ${formatBytes(item.byteSize)}`}</span>
     </div>
   );
 }
@@ -247,7 +251,7 @@ function Preview({ item, display, route, onRouteChange, onPositionChange }: {
       </div>
       <div className="selected-summary">
         <span className="selected-icon">{item?.kind === "video" ? <Video size={18} /> : <ImageIcon size={18} />}</span>
-        <span><strong>{item?.name ?? "未选择媒体"}</strong><small>{item ? `${item.origin === "api" ? "随机 API" : item.origin === "remote" ? "网络媒体" : "本地媒体"} · ${formatBytes(item.byteSize)}` : "从左侧媒体库选择"}</small></span>
+        <span><strong>{item?.name ?? "未选择媒体"}</strong><small>{item ? `${item.origin === "api" ? "随机 API" : item.origin === "folder" ? `文件夹 · ${item.fileCount ?? 0} 个媒体` : item.origin === "remote" ? "网络媒体" : "本地媒体"}${item.origin === "folder" ? "" : ` · ${formatBytes(item.byteSize)}`}` : "从左侧媒体库选择"}</small></span>
       </div>
     </section>
   );
@@ -303,8 +307,11 @@ export default function App() {
   const importResult = useCallback(async (operation: () => Promise<{ added: MediaItem[]; skipped: Array<{ reason: string }> }>) => {
     const result = await operation();
     if (result.added.length || result.skipped.length) {
+      const folder = result.added.find((item) => item.origin === "folder");
       setNotice(result.added.length
-        ? `已导入 ${result.added.length} 个媒体${result.skipped.length ? `，跳过 ${result.skipped.length} 个` : ""}`
+        ? folder
+          ? `已添加文件夹源「${folder.name}」，不会复制文件`
+          : `已导入 ${result.added.length} 个媒体${result.skipped.length ? `，跳过 ${result.skipped.length} 个` : ""}`
         : result.skipped[0]?.reason ?? "没有可导入的媒体");
     }
     setSnapshot(await bridge.getSnapshot());
@@ -342,7 +349,7 @@ export default function App() {
           <div className="panel-heading"><div><h2>媒体库</h2><span>{snapshot.library.length}</span></div><ChevronDown size={16} /></div>
           <div className="import-actions">
             <IconButton icon={<Upload size={17} />} label="导入文件" onClick={() => run("files", () => importResult(() => bridge.chooseMediaFiles()))} />
-            <IconButton icon={<FolderOpen size={17} />} label="导入文件夹" onClick={() => run("folder", () => importResult(() => bridge.chooseMediaFolder()))} />
+            <IconButton icon={<FolderOpen size={17} />} label="添加文件夹" onClick={() => run("folder", () => importResult(() => bridge.chooseMediaFolder()))} />
             <IconButton icon={<Link size={17} />} label="添加网络媒体" onClick={() => setRemoteOpen(true)} />
           </div>
           <label className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索媒体" /></label>
