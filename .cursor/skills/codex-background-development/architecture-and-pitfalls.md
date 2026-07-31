@@ -275,6 +275,22 @@ Tauri 单实例插件必须是 Builder 注册的第一个插件。第二次启�
   `bg-token-bg-secondary`；给 `size-token-button-composer` 上的 dropdown-background
   图标固定深色前景（如 `#16181c`）。
 
+### 任务页 / 拉取请求 / 站点 / 已安排 / 插件整页变黑
+
+先别当成 MainContentSurface 选择器又失效。CDP 核对：
+
+1. `main` 壳是否已透明（选择器正常时 `background` 为 transparent）；
+2. `#codex-background-layer` 的 `opacity` 与 `--cbg-task-intensity` / `--cbg-route-intensity`。
+
+非首页统一走 `codex-background-task`，层透明度是
+`opacity * taskIntensity`。若 `taskIntensity` 为 `0`（或 `enabledOnTasks` 关），
+墙纸层完全看不见；再叠加 `html.electron-opaque` 的
+`--color-background-surface-under`（约 `#141414`），看起来就像整页实心黑。
+
+处理：在 Studio「页面」里把任务页显示强度调回非 0（默认 `0.32`）并点「应用」。
+只改 `settings.json` 不够——Studio 进程内存里的旧值会写回磁盘，且已注入的
+payload 闭包仍带着旧 `taskIntensity`，MutationObserver 会持续把 CSS 变量打回 `0`。
+
 ### 任务页对话滚不动
 
 原因：透明化后 `#root` 下主壳 `div.relative.flex.flex-col` 会被长对话撑到内容高度

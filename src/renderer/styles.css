@@ -530,6 +530,7 @@ select:focus-visible {
 }
 .control-section h3 { display: flex; align-items: center; justify-content: space-between; margin: 0; color: #394440; font-size: 11px; }
 .control-section h3 span { color: #7e8884; font-weight: 400; }
+.section-hint { margin: 0; color: #7b8581; font-size: 11px; line-height: 1.45; }
 .fit-segmented { width: 100%; grid-template-columns: repeat(4, 1fr); grid-auto-columns: auto; }
 .fit-segmented button { padding: 0 4px; }
 

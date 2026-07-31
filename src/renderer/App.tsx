@@ -426,6 +426,7 @@ export default function App() {
               </section>
               <section className="control-section">
                 <h3>任务页</h3>
+                <p className="section-hint">含工作区、拉取请求、站点、已安排、插件等非首页。强度为 0 时这些页会只剩深色底。</p>
                 <Toggle label="显示背景" checked={display.enabledOnTasks} onChange={(enabledOnTasks) => patchSettings({ display: { enabledOnTasks } })} />
                 <RangeControl label="显示强度" value={display.taskIntensity} min={0} max={1} step={0.01} onChange={(taskIntensity) => patchSettings({ display: { taskIntensity } })} />
               </section>
