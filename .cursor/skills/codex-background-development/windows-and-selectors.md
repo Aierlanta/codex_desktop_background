@@ -46,10 +46,9 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 - `.app-shell-main-content-frame`、`[role="main"]` 和全高页面壳应透明。
 - 拉取请求 / 站点 / 已安排 / 插件等 list-detail 页常常没有 `[role="main"]`，
   而是用 `:is(div, section, aside)[class~="bg-token-main-surface-primary"]` 铺满；这些壳要清透明。
-- 设置页会在 viewport 内再嵌一层 `div.main-surface.flex.h-full.min-h-0.flex-col`，
-  原生实底约为 `#181818`；必须单独透明，否则会挡住全局背景。
+- 旧版设置页会在 viewport 内再嵌一层 `div.main-surface`；新版不再嵌套，卡片直接挂在 viewport 下。
 - 设置分组卡片：`[class~="overflow-hidden"][class~="rounded-2xl"][class~="border"][class*="border-token-border"]`
-  跟随 `--cbg-menu-opacity`；内部设置行本身透明，不要再叠一层。
+  跟随 `--cbg-menu-opacity`；选择器不要再强制要求嵌套 `div.main-surface`。
 - 设置页提示横幅：`aside.rounded-2xl[class*="bg-token-main-surface-primary"]`
   跟随 `--cbg-menu-opacity`；内部警告色叠加层清掉，避免实底回潮。
 - 设置页输入：`[class*="bg-token-input-background"]`（例如 `#personal-agents-editor`）
@@ -140,9 +139,11 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 
 ### Composer
 
-- 稳定入口：`.composer-surface-chrome`
+- 稳定入口（旧）：`.composer-surface-chrome`
+- 稳定入口（新）：`[data-composer-surface-variant]`（CSS Modules 根如 `ComposerLayoutRoot_*`）
 - 兼容入口：`div.no-drag:has(> textarea)`
 - 透明度：`--cbg-composer-opacity`
+- 新版常带 `backdrop-filter: blur(...)` 与 elevation 描边，必须一并清除。
 - 必须清：
   - `box-shadow`
   - `border-color`

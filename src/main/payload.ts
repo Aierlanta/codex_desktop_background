@@ -126,17 +126,20 @@ html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"
   backdrop-filter: none !important;
 }
 /* 设置页分组卡片（rounded-2xl + border-token-border）原生约 #232323 实底。
-   跟随菜单/面板不透明度，避免在透明设置页上再盖一整块不透卡片。 */
+   新版设置页不再嵌套 div.main-surface，卡片直接挂在 viewport 下。 */
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) [class~="overflow-hidden"][class~="rounded-2xl"][class~="border"][class*="border-token-border"],
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) div:is(.main-surface, [class*="MainContentSurface"]) [class~="overflow-hidden"][class~="rounded-2xl"][class~="border"][class*="border-token-border"] {
   background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
 }
 /* 设置页提示横幅（例如个性化页“并非所有模型都支持…”），含警告色叠加层。 */
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"],
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) div:is(.main-surface, [class*="MainContentSurface"]) aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] {
   background-color: color-mix(in srgb, var(--cbg-surface-color, #f6f7f7) calc(var(--cbg-menu-opacity) * 100%), transparent) !important;
   backdrop-filter: none !important;
   box-shadow: none !important;
 }
+html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] [class*="bg-token-input-validation-warning-background"],
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) :is(.app-shell-main-content-viewport, [class*="MainContentViewport"]) div:is(.main-surface, [class*="MainContentSurface"]) aside[class~="rounded-2xl"][class*="bg-token-main-surface-primary"] [class*="bg-token-input-validation-warning-background"] {
   background-color: transparent !important;
 }
@@ -144,7 +147,10 @@ html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"
   background-color: transparent !important;
 }
 
+/* 新版 Composer 根节点是 [data-composer-surface-variant] / ComposerLayoutRoot_*，
+   旧版仍是 .composer-surface-chrome。两者都跟随输入框不透明度。 */
 html.codex-background-active .composer-surface-chrome,
+html.codex-background-active [data-composer-surface-variant],
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) div.no-drag:has(> input[type="text"]),
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) div.no-drag:has(> textarea),
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class*="bg-token-input-background"] {
