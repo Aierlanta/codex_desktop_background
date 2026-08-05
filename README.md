@@ -65,8 +65,8 @@ NSIS 产物位于 `src-tauri/target/release/bundle/nsis/`。从 0.4.0 起 Tauri 
 完整检查、构建 NSIS 安装包，并创建正式 GitHub Release：
 
 ```powershell
-git tag v0.4.15
-git push origin v0.4.15
+git tag v0.4.16
+git push origin v0.4.16
 ```
 
 工作流会核对 `package.json`、`src-tauri/Cargo.toml`、`tauri.conf.json` 和标签版本，

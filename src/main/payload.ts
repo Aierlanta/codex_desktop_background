@@ -147,10 +147,14 @@ html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"
   background-color: transparent !important;
 }
 
-/* 新版 Composer 根节点是 [data-composer-surface-variant] / ComposerLayoutRoot_*，
-   旧版仍是 .composer-surface-chrome。两者都跟随输入框不透明度。 */
+/* 新版 Composer：
+   - 任务页实底常在 [data-composer-surface-variant] / ComposerLayoutRoot
+   - 首页实底挪到了子层 ComposerLayoutBody（仍带 data-composer-layout）
+   旧版仍是 .composer-surface-chrome。三者都跟随输入框不透明度。 */
 html.codex-background-active .composer-surface-chrome,
 html.codex-background-active [data-composer-surface-variant],
+html.codex-background-active [data-composer-surface-variant] [data-composer-layout],
+html.codex-background-active [class*="ComposerLayoutBody"],
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) div.no-drag:has(> input[type="text"]),
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) div.no-drag:has(> textarea),
 html.codex-background-active main:is(.main-surface, [class*="MainContentSurface"]) [class*="bg-token-input-background"] {

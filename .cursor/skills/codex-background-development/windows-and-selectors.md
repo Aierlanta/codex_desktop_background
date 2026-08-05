@@ -140,7 +140,10 @@ Codex class 名可能随版本变化。这里记录的是稳定入口和定位�
 ### Composer
 
 - 稳定入口（旧）：`.composer-surface-chrome`
-- 稳定入口（新）：`[data-composer-surface-variant]`（CSS Modules 根如 `ComposerLayoutRoot_*`）
+- 稳定入口（新根）：`[data-composer-surface-variant]` / `[class*="ComposerLayoutRoot"]`
+- 稳定入口（新首页子层）：`[class*="ComposerLayoutBody"]` 或
+  `[data-composer-surface-variant] [data-composer-layout]`
+  首页把实底/blur 画在 Body 上，只透明 Root 不够。
 - 兼容入口：`div.no-drag:has(> textarea)`
 - 透明度：`--cbg-composer-opacity`
 - 新版常带 `backdrop-filter: blur(...)` 与 elevation 描边，必须一并清除。
