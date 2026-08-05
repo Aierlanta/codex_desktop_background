@@ -8,7 +8,7 @@ use tauri::{
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
-use crate::{lock, StudioState};
+use crate::StudioState;
 
 const AUTOSTART_NAME: &str = "Codex Background Studio";
 

@@ -1,10 +1,15 @@
 # Codex Background Studio
 
+[![org](https://img.shields.io/badge/org-background--studio-0ea5e9)](https://github.com/background-studio)
+[![release](https://img.shields.io/github/v/release/background-studio/codex_desktop_background)](https://github.com/background-studio/codex_desktop_background/releases)
+
 ![Codex Background Studio Logo](./assets/icon.png)
 <img width="1928" height="1040" alt="image" src="https://github.com/user-attachments/assets/02939706-c069-4632-8e7b-92db0cffc0aa" />
 <img width="2312" height="1080" alt="image" src="https://github.com/user-attachments/assets/2e49890e-6f09-415d-9380-e624d77ec82e" />
 
-
+属于 [Background Studio](https://github.com/background-studio) 组织。可独立安装，也可作为
+[Background Studio 壳](https://github.com/background-studio/background-studio) 的插件
+（`--plugin` + `*-plugin.zip`，见 [docs/plugin-protocol.md](./docs/plugin-protocol.md)）。
 
 一个面向 Windows 官方 Codex 桌面应用的独立背景管理器。它通过本机回环
 Chromium DevTools Protocol 动态加载背景，不修改 `WindowsApps`、
@@ -65,12 +70,13 @@ NSIS 产物位于 `src-tauri/target/release/bundle/nsis/`。从 0.4.0 起 Tauri 
 完整检查、构建 NSIS 安装包，并创建正式 GitHub Release：
 
 ```powershell
-git tag v0.4.16
-git push origin v0.4.16
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 工作流会核对 `package.json`、`src-tauri/Cargo.toml`、`tauri.conf.json` 和标签版本，
-任一不一致都会停止发布。
+任一不一致都会停止发布。Release 同时上传 NSIS 安装包与
+`CodexBackgroundStudio-<version>-plugin.zip`（供 Background Studio 壳安装）。
 
 维护 Codex 页面样式、CDP 注入或媒体流程前，请先阅读项目 Skill：
 [`codex-background-development`](./.cursor/skills/codex-background-development/SKILL.md)。
